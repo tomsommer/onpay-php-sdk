@@ -66,8 +66,11 @@ class OnPayApiTest extends TestCase {
     }
 
     /** @throws Exception */
-    public function testLogFailedResponseUsesLoggerWhenSet(): void {
-        $client = new CurlHttpClient();
+    public function testSetLoggerOnApiForwardsAndLoggerIsUsedForFailures(): void {
+        $tokenStorage = $this->createMock(TokenStorageInterface::class);
+        $tokenStorage->method('getToken')->willReturn('test_token');
+        $api = new OnPayAPI($tokenStorage, ['client_id' => 'test_id', 'redirect_uri' => 'test_uri']);
+
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects($this->once())
             ->method('warning')
@@ -78,30 +81,16 @@ class OnPayApiTest extends TestCase {
                         && false !== strpos((string) ($context['response'] ?? ''), 'failed-body');
                 })
             );
-        $client->setLogger($logger);
-
-        $method = (new \ReflectionClass($client))->getMethod('logFailedResponse');
-        $method->setAccessible(true);
-        $method->invoke($client, new Request('GET', 'https://example.test/path'), new Response(500, 'failed-body'));
-    }
-
-    /** @throws Exception */
-    public function testSetLoggerForwardsToHttpClient(): void {
-        $tokenStorage = $this->createMock(TokenStorageInterface::class);
-        $tokenStorage->method('getToken')->willReturn('test_token');
-        $api = new OnPayAPI($tokenStorage, ['client_id' => 'test_id', 'redirect_uri' => 'test_uri']);
-
-        $logger = $this->createMock(LoggerInterface::class);
         $api->setLogger($logger);
 
-        $reflected = new \ReflectionClass($api);
-        $httpClientProp = $reflected->getProperty('httpClient');
+        $apiReflection = new \ReflectionClass($api);
+        $httpClientProp = $apiReflection->getProperty('httpClient');
         $httpClientProp->setAccessible(true);
+        /** @var CurlHttpClient $httpClient */
         $httpClient = $httpClientProp->getValue($api);
 
-        $loggerProp = (new \ReflectionClass($httpClient))->getProperty('logger');
-        $loggerProp->setAccessible(true);
-
-        $this->assertSame($logger, $loggerProp->getValue($httpClient));
+        $logMethod = (new \ReflectionClass($httpClient))->getMethod('logFailedResponse');
+        $logMethod->setAccessible(true);
+        $logMethod->invoke($httpClient, new Request('GET', 'https://example.test/path'), new Response(500, 'failed-body'));
     }
 }
