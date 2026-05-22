@@ -51,7 +51,7 @@ class OnPayApiTest extends TestCase {
             $response = new Response(500, 'failed-body');
 
             $method = (new \ReflectionClass($client))->getMethod('logFailedResponse');
-            $method->setAccessible(true);
+            $method->setAccessible(true); // NOSONAR — reflection required to test protected logging path
             $method->invoke($client, $request, $response);
 
             $contents = file_get_contents($tmpFile);
@@ -85,12 +85,12 @@ class OnPayApiTest extends TestCase {
 
         $apiReflection = new \ReflectionClass($api);
         $httpClientProp = $apiReflection->getProperty('httpClient');
-        $httpClientProp->setAccessible(true);
+        $httpClientProp->setAccessible(true); // NOSONAR — reflection required to reach private collaborator
         /** @var CurlHttpClient $httpClient */
         $httpClient = $httpClientProp->getValue($api);
 
         $logMethod = (new \ReflectionClass($httpClient))->getMethod('logFailedResponse');
-        $logMethod->setAccessible(true);
+        $logMethod->setAccessible(true); // NOSONAR — reflection required to test protected logging path
         $logMethod->invoke($httpClient, new Request('GET', 'https://example.test/path'), new Response(500, 'failed-body'));
     }
 }
