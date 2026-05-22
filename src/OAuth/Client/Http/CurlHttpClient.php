@@ -3,9 +3,13 @@
 namespace OnPay\OAuth\Client\Http;
 
 use OnPay\OAuth\Client\Http\Exception\CurlException;
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
 
-class CurlHttpClient implements HttpClientInterface
+class CurlHttpClient implements HttpClientInterface, LoggerAwareInterface
 {
+    use LoggerAwareTrait;
+
     /** @var resource */
     private $curlChannel;
 
@@ -44,10 +48,29 @@ class CurlHttpClient implements HttpClientInterface
 
         $response = $this->exec($curlOptions, $request->getHeaders());
         if (!$response->isOkay()) {
-            \error_log(\sprintf('REQUEST=%s, RESPONSE=%s', (string) $request, (string) $response));
+            $this->logFailedResponse($request, $response);
         }
 
         return $response;
+    }
+
+    /**
+     * Logs a failed response either to a configured PSR-3 logger, or via error_log()
+     * when none is set. The error_log() fallback preserves the original SDK behavior.
+     *
+     * @return void
+     */
+    protected function logFailedResponse(Request $request, Response $response)
+    {
+        if (null !== $this->logger) {
+            $this->logger->warning('OnPay HTTP request failed', [
+                'status' => $response->getStatusCode(),
+                'request' => (string) $request,
+                'response' => (string) $response,
+            ]);
+            return;
+        }
+        \error_log(\sprintf('REQUEST=%s, RESPONSE=%s', (string) $request, (string) $response));
     }
 
     /**
