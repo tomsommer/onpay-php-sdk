@@ -4,6 +4,7 @@ namespace OnPay;
 
 use OnPay\OAuth\Client\Http\CurlHttpClient;
 use OnPay\OAuth\Client\Http\Exception\CurlException;
+use OnPay\OAuth\Client\Http\HttpClientInterface;
 use OnPay\OAuth\Client\Http\Response;
 use OnPay\OAuth\Client\Provider;
 use OnPay\OAuth\Client\Http\Request;
@@ -95,10 +96,17 @@ class OnPayAPI {
 
     /**
      * OnPayAPI constructor.
+     *
+     * The optional $httpClient parameter is typed so DI containers (Symfony, Laravel,
+     * PHP-DI, etc.) can autowire any registered HttpClientInterface implementation.
+     * When omitted, the SDK falls back to its built-in CurlHttpClientLogger and
+     * behaves identically to previous versions.
+     *
      * @param \OnPay\TokenStorageInterface $tokenStorage
      * @param array $options
+     * @param HttpClientInterface|null $httpClient
      */
-    public function __construct(TokenStorageInterface $tokenStorage, array $options) {
+    public function __construct(TokenStorageInterface $tokenStorage, array $options, ?HttpClientInterface $httpClient = null) {
         $this->tokenStorage = $tokenStorage;
 
         $defaultOptions = [
@@ -141,13 +149,32 @@ class OnPayAPI {
             $this->options['base_uri'] . '/oauth2/access_token'
         );
 
-        $this->httpClient = new CurlHttpClientLogger([]);
+        $this->httpClient = $httpClient ?? new CurlHttpClientLogger([]);
 
         if (array_key_exists('platform', $this->options)) {
             $this->platform = $this->options['platform'];
         } else {
             $this->platform = 'php-sdk' . '/' . self::SDK_VERSION;
         }
+    }
+
+    /**
+     * Replaces the HTTP client used for all API and OAuth requests.
+     *
+     * Accepts any implementation of OnPay's HttpClientInterface. Users wanting to
+     * route requests through Guzzle, Symfony HttpClient, a PSR-18 client, etc.
+     * should provide a small adapter that translates OnPay's Request/Response
+     * to/from their library of choice.
+     *
+     * Resets the cached OAuthClient so the next API call recreates it with the
+     * new HTTP client.
+     *
+     * @param HttpClientInterface $httpClient
+     * @return void
+     */
+    public function setHttpClient(HttpClientInterface $httpClient) {
+        $this->httpClient = $httpClient;
+        $this->client = null;
     }
 
     /**
@@ -247,8 +274,7 @@ class OnPayAPI {
                 $request
             );
 
-            $this->setLastHttpRequest($this->httpClient->getLastRequest());
-            $this->setLastHttpResponse($this->httpClient->getLastResponse());
+            $this->refreshLastHttpInfo();
 
             return $this->handleResponse($response);
         } catch (CurlException $e) {
@@ -286,8 +312,7 @@ class OnPayAPI {
                 $request
             );
 
-            $this->setLastHttpRequest($this->httpClient->getLastRequest());
-            $this->setLastHttpResponse($this->httpClient->getLastResponse());
+            $this->refreshLastHttpInfo();
 
             return $this->handleResponse($response);
         } catch (CurlException $e) {
@@ -387,6 +412,24 @@ class OnPayAPI {
             $this->gatewayService = new GatewayService($this);
         }
         return $this->gatewayService;
+    }
+
+    /**
+     * Pulls last-request/response info from the underlying HTTP client when it
+     * supports it (e.g. CurlHttpClientLogger). For other clients this becomes a
+     * no-op, so getLastHttpRequest()/getLastHttpResponse() return empty objects.
+     *
+     * @return void
+     */
+    private function refreshLastHttpInfo() {
+        $lastRequest = method_exists($this->httpClient, 'getLastRequest')
+            ? $this->httpClient->getLastRequest()
+            : null;
+        $lastResponse = method_exists($this->httpClient, 'getLastResponse')
+            ? $this->httpClient->getLastResponse()
+            : null;
+        $this->setLastHttpRequest($lastRequest);
+        $this->setLastHttpResponse($lastResponse);
     }
 
     /**
