@@ -5,6 +5,7 @@ namespace OnPay;
 use OnPay\OAuth\Client\Http\CurlHttpClient;
 use OnPay\OAuth\Client\Http\Exception\CurlException;
 use OnPay\OAuth\Client\Http\HttpClientInterface;
+use OnPay\OAuth\Client\Http\Psr18Adapter;
 use OnPay\OAuth\Client\Http\Response;
 use OnPay\OAuth\Client\Provider;
 use OnPay\OAuth\Client\Http\Request;
@@ -18,6 +19,9 @@ use OnPay\API\PaymentService;
 use OnPay\API\Http\Request as HttpRequest;
 use OnPay\API\Http\Response as HttpResponse;
 use OnPay\OAuth\Client\OAuthClient;
+use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestFactoryInterface;
+use Psr\Http\Message\StreamFactoryInterface;
 
 class OnPayAPI {
     const SDK_VERSION = '1.0.38';
@@ -95,18 +99,40 @@ class OnPayAPI {
     protected $platform;
 
     /**
+     * @var RequestFactoryInterface|null
+     */
+    private $requestFactory;
+
+    /**
+     * @var StreamFactoryInterface|null
+     */
+    private $streamFactory;
+
+    /**
      * OnPayAPI constructor.
      *
-     * The optional $httpClient parameter is typed so DI containers (Symfony, Laravel,
-     * PHP-DI, etc.) can autowire any registered HttpClientInterface implementation.
-     * When omitted, the SDK falls back to its built-in CurlHttpClientLogger and
-     * behaves identically to previous versions.
+     * The optional PSR-18 $httpClient (with PSR-17 $requestFactory and $streamFactory)
+     * lets consumers route requests through any PSR-18 compatible HTTP client —
+     * Symfony HttpClient, Guzzle, Buzz, etc. All three parameters are typed so DI
+     * containers (Symfony, Laravel, PHP-DI, …) can autowire registered services
+     * automatically.
+     *
+     * When $httpClient is omitted, the SDK falls back to its built-in
+     * CurlHttpClientLogger and behaves identically to previous versions.
      *
      * @param \OnPay\TokenStorageInterface $tokenStorage
      * @param array $options
-     * @param HttpClientInterface|null $httpClient
+     * @param ClientInterface|null $httpClient PSR-18 HTTP client
+     * @param RequestFactoryInterface|null $requestFactory PSR-17 request factory (required when $httpClient is supplied)
+     * @param StreamFactoryInterface|null $streamFactory PSR-17 stream factory (required when $httpClient is supplied)
      */
-    public function __construct(TokenStorageInterface $tokenStorage, array $options, ?HttpClientInterface $httpClient = null) {
+    public function __construct(
+        TokenStorageInterface $tokenStorage,
+        array $options,
+        ?ClientInterface $httpClient = null,
+        ?RequestFactoryInterface $requestFactory = null,
+        ?StreamFactoryInterface $streamFactory = null
+    ) {
         $this->tokenStorage = $tokenStorage;
 
         $defaultOptions = [
@@ -149,7 +175,11 @@ class OnPayAPI {
             $this->options['base_uri'] . '/oauth2/access_token'
         );
 
-        $this->httpClient = $httpClient ?? new CurlHttpClientLogger([]);
+        $this->requestFactory = $requestFactory;
+        $this->streamFactory = $streamFactory;
+        $this->httpClient = null === $httpClient
+            ? new CurlHttpClientLogger([])
+            : $this->wrapPsr18Client($httpClient);
 
         if (array_key_exists('platform', $this->options)) {
             $this->platform = $this->options['platform'];
@@ -159,22 +189,49 @@ class OnPayAPI {
     }
 
     /**
-     * Replaces the HTTP client used for all API and OAuth requests.
+     * Replaces the HTTP client used for all API and OAuth requests at runtime.
      *
-     * Accepts any implementation of OnPay's HttpClientInterface. Users wanting to
-     * route requests through Guzzle, Symfony HttpClient, a PSR-18 client, etc.
-     * should provide a small adapter that translates OnPay's Request/Response
-     * to/from their library of choice.
+     * Accepts a PSR-18 ClientInterface. PSR-17 factories may be passed here or
+     * inherited from those supplied at construction time — both must be
+     * available (here or via the constructor) before the new client is used.
      *
      * Resets the cached OAuthClient so the next API call recreates it with the
      * new HTTP client.
      *
-     * @param HttpClientInterface $httpClient
+     * @param ClientInterface $httpClient
+     * @param RequestFactoryInterface|null $requestFactory
+     * @param StreamFactoryInterface|null $streamFactory
      * @return void
      */
-    public function setHttpClient(HttpClientInterface $httpClient) {
-        $this->httpClient = $httpClient;
+    public function setHttpClient(
+        ClientInterface $httpClient,
+        ?RequestFactoryInterface $requestFactory = null,
+        ?StreamFactoryInterface $streamFactory = null
+    ) {
+        if (null !== $requestFactory) {
+            $this->requestFactory = $requestFactory;
+        }
+        if (null !== $streamFactory) {
+            $this->streamFactory = $streamFactory;
+        }
+        $this->httpClient = $this->wrapPsr18Client($httpClient);
         $this->client = null;
+    }
+
+    /**
+     * Wraps a PSR-18 client in the SDK's internal HttpClientInterface using the
+     * configured PSR-17 factories.
+     *
+     * @param ClientInterface $client
+     * @return HttpClientInterface
+     */
+    private function wrapPsr18Client(ClientInterface $client) {
+        if (null === $this->requestFactory || null === $this->streamFactory) {
+            throw new \InvalidArgumentException(
+                'A PSR-18 HTTP client requires PSR-17 RequestFactoryInterface and StreamFactoryInterface to be provided.'
+            );
+        }
+        return new Psr18Adapter($client, $this->requestFactory, $this->streamFactory);
     }
 
     /**

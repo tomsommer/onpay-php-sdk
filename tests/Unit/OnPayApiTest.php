@@ -2,13 +2,13 @@
 
 namespace Tests\Unit;
 
-use OnPay\OAuth\Client\Http\HttpClientInterface;
-use OnPay\OAuth\Client\Http\Request;
-use OnPay\OAuth\Client\Http\Response;
+use Nyholm\Psr7\Factory\Psr17Factory;
 use OnPay\OnPayAPI;
 use OnPay\TokenStorageInterface;
 use PHPUnit\Framework\MockObject\Exception;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestInterface;
 
 class OnPayApiTest extends TestCase {
     /** @throws Exception */
@@ -38,15 +38,18 @@ class OnPayApiTest extends TestCase {
     }
 
     /** @throws Exception */
-    public function testConstructorInjectsCustomHttpClient(): void {
+    public function testConstructorInjectsPsr18Client(): void {
         $tokenStorage = $this->createMock(TokenStorageInterface::class);
         $tokenStorage->method('getToken')->willReturn($this->buildToken('https://auth.test', 'test_id'));
 
+        $factory = new Psr17Factory();
         $sentRequests = [];
-        $httpClient = $this->createMock(HttpClientInterface::class);
-        $httpClient->method('send')->willReturnCallback(function (Request $request) use (&$sentRequests) {
+        $httpClient = $this->createMock(ClientInterface::class);
+        $httpClient->method('sendRequest')->willReturnCallback(function (RequestInterface $request) use (&$sentRequests, $factory) {
             $sentRequests[] = $request;
-            return new Response(200, json_encode(['data' => ['pong' => 'merchant']]), ['Content-Type' => 'application/json']);
+            return $factory->createResponse(200)
+                ->withHeader('Content-Type', 'application/json')
+                ->withBody($factory->createStream(json_encode(['data' => ['pong' => 'merchant']])));
         });
 
         $api = new OnPayAPI(
@@ -57,13 +60,15 @@ class OnPayApiTest extends TestCase {
                 'client_id' => 'test_id',
                 'redirect_uri' => 'test_uri',
             ],
-            $httpClient
+            $httpClient,
+            $factory,
+            $factory
         );
 
         $this->assertTrue($api->isAuthorized());
         $this->assertCount(1, $sentRequests);
         $this->assertSame('GET', $sentRequests[0]->getMethod());
-        $this->assertSame('https://api.test/v1/ping', $sentRequests[0]->getUri());
+        $this->assertSame('https://api.test/v1/ping', (string) $sentRequests[0]->getUri());
     }
 
     /** @throws Exception */
@@ -71,11 +76,14 @@ class OnPayApiTest extends TestCase {
         $tokenStorage = $this->createMock(TokenStorageInterface::class);
         $tokenStorage->method('getToken')->willReturn($this->buildToken('https://auth.test', 'test_id'));
 
+        $factory = new Psr17Factory();
         $sentRequests = [];
-        $httpClient = $this->createMock(HttpClientInterface::class);
-        $httpClient->method('send')->willReturnCallback(function (Request $request) use (&$sentRequests) {
+        $httpClient = $this->createMock(ClientInterface::class);
+        $httpClient->method('sendRequest')->willReturnCallback(function (RequestInterface $request) use (&$sentRequests, $factory) {
             $sentRequests[] = $request;
-            return new Response(200, json_encode(['data' => ['pong' => 'merchant']]), ['Content-Type' => 'application/json']);
+            return $factory->createResponse(200)
+                ->withHeader('Content-Type', 'application/json')
+                ->withBody($factory->createStream(json_encode(['data' => ['pong' => 'merchant']])));
         });
 
         $api = new OnPayAPI($tokenStorage, [
@@ -84,7 +92,7 @@ class OnPayApiTest extends TestCase {
             'client_id' => 'test_id',
             'redirect_uri' => 'test_uri',
         ]);
-        $api->setHttpClient($httpClient);
+        $api->setHttpClient($httpClient, $factory, $factory);
 
         $this->assertTrue($api->isAuthorized());
         $this->assertCount(1, $sentRequests);
@@ -106,8 +114,21 @@ class OnPayApiTest extends TestCase {
         $getClient->invoke($api);
         $this->assertNotNull($clientProp->getValue($api)); // NOSONAR — reflection required to verify cache state
 
-        $api->setHttpClient($this->createMock(HttpClientInterface::class));
+        $factory = new Psr17Factory();
+        $api->setHttpClient($this->createMock(ClientInterface::class), $factory, $factory);
         $this->assertNull($clientProp->getValue($api)); // NOSONAR — reflection required to verify cache reset
+    }
+
+    /** @throws Exception */
+    public function testSetHttpClientThrowsWhenFactoriesMissing(): void {
+        $tokenStorage = $this->createMock(TokenStorageInterface::class);
+        $tokenStorage->method('getToken')->willReturn('test_token');
+
+        $api = new OnPayAPI($tokenStorage, ['client_id' => 'test_id', 'redirect_uri' => 'test_uri']);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('PSR-17 RequestFactoryInterface and StreamFactoryInterface');
+        $api->setHttpClient($this->createMock(ClientInterface::class));
     }
 
     private function buildToken(string $baseAuthUri, string $clientId): string {
