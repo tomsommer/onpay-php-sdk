@@ -87,7 +87,7 @@ class OnPayApiTest extends TestCase {
         $httpClientProp = $apiReflection->getProperty('httpClient');
         $httpClientProp->setAccessible(true); // NOSONAR — reflection required to reach private collaborator
         /** @var CurlHttpClient $httpClient */
-        $httpClient = $httpClientProp->getValue($api);
+        $httpClient = $httpClientProp->getValue($api); // NOSONAR — reflection required to reach private collaborator
 
         $logMethod = (new \ReflectionClass($httpClient))->getMethod('logFailedResponse');
         $logMethod->setAccessible(true); // NOSONAR — reflection required to test protected logging path
