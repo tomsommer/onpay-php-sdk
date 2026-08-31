@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use OnPay\OAuth\Client\Provider;
 use OnPay\OnPayAPI;
 use OnPay\TokenStorageInterface;
 use PHPUnit\Framework\MockObject\Exception;
@@ -32,5 +33,88 @@ class OnPayApiTest extends TestCase {
         $tokenStorage->method('getToken')->willReturn('test_token');
         $this->expectNotToPerformAssertions();
         new OnPayAPI($tokenStorage, ['client_id' => 'test_id', 'redirect_uri' => 'test_uri']);
+    }
+
+    /** @throws Exception */
+    public function testInitializeApiWithLegacyNumericStringGatewayId(): void {
+        $api = new OnPayAPI($this->createMock(TokenStorageInterface::class), [
+            'client_id' => 'test_id',
+            'redirect_uri' => 'test_uri',
+            'gateway_id' => '1234',
+        ]);
+        $this->assertStringContainsString('/1234/oauth2/authorize', $this->getAuthorizationEndpoint($api));
+    }
+
+    /** @throws Exception */
+    public function testInitializeApiWithLegacyNumericIntGatewayId(): void {
+        $api = new OnPayAPI($this->createMock(TokenStorageInterface::class), [
+            'client_id' => 'test_id',
+            'redirect_uri' => 'test_uri',
+            'gateway_id' => 1234,
+        ]);
+        $this->assertStringContainsString('/1234/oauth2/authorize', $this->getAuthorizationEndpoint($api));
+    }
+
+    /** @throws Exception */
+    public function testInitializeApiWithNewAlphanumericGatewayId(): void {
+        $api = new OnPayAPI($this->createMock(TokenStorageInterface::class), [
+            'client_id' => 'test_id',
+            'redirect_uri' => 'test_uri',
+            'gateway_id' => 'A5KM3QX7B',
+        ]);
+        $this->assertStringContainsString('/A5KM3QX7B/oauth2/authorize', $this->getAuthorizationEndpoint($api));
+    }
+
+    /** @throws Exception */
+    public function testInitializeThrowsOnEmptyGatewayId(): void {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('gateway_id must be a non-empty alphanumeric value');
+        new OnPayAPI($this->createMock(TokenStorageInterface::class), [
+            'client_id' => 'test_id',
+            'redirect_uri' => 'test_uri',
+            'gateway_id' => '',
+        ]);
+    }
+
+    /** @throws Exception */
+    public function testInitializeThrowsOnLowercaseGatewayId(): void {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('gateway_id must be a non-empty alphanumeric value');
+        new OnPayAPI($this->createMock(TokenStorageInterface::class), [
+            'client_id' => 'test_id',
+            'redirect_uri' => 'test_uri',
+            'gateway_id' => 'a5km3qx7b',
+        ]);
+    }
+
+    /** @throws Exception */
+    public function testInitializeThrowsOnGatewayIdWithHyphen(): void {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('gateway_id must be a non-empty alphanumeric value');
+        new OnPayAPI($this->createMock(TokenStorageInterface::class), [
+            'client_id' => 'test_id',
+            'redirect_uri' => 'test_uri',
+            'gateway_id' => 'A5-KM3',
+        ]);
+    }
+
+    /** @throws Exception */
+    public function testInitializeThrowsOnGatewayIdWithSpace(): void {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('gateway_id must be a non-empty alphanumeric value');
+        new OnPayAPI($this->createMock(TokenStorageInterface::class), [
+            'client_id' => 'test_id',
+            'redirect_uri' => 'test_uri',
+            'gateway_id' => 'A5 KM3',
+        ]);
+    }
+
+    private function getAuthorizationEndpoint(OnPayAPI $api): string {
+        $ref = new \ReflectionClass($api);
+        $prop = $ref->getProperty('oauth2Provider');
+        $prop->setAccessible(true);
+        /** @var Provider $provider */
+        $provider = $prop->getValue($api);
+        return $provider->getAuthorizationEndpoint();
     }
 }
