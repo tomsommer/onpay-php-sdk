@@ -67,6 +67,35 @@ class PaymentWindowTest extends TestCase {
         $this->assertTrue($this->window()->validatePayment($fields));
     }
 
+    /**
+     * Every onpay_-prefixed parameter present takes part in the comparison, so
+     * an injected one cannot slip past: it changes the signed query string.
+     */
+    public function testInjectedOnpayParameterIsRejected(): void {
+        $fields = $this->window()->getFormFields();
+        $fields['onpay_evil'] = '1';
+
+        $this->assertFalse($this->window()->validatePayment($fields));
+    }
+
+    public function testRemovingASignedParameterIsRejected(): void {
+        $fields = $this->window()->getFormFields();
+        unset($fields['onpay_reference']);
+
+        $this->assertFalse($this->window()->validatePayment($fields));
+    }
+
+    /**
+     * Nothing the window signs is emitted without the onpay_ prefix, which is
+     * what makes prefix selection on the way back in lossless.
+     */
+    public function testEverySignedFieldCarriesThePrefix(): void {
+        $keys = array_keys($this->window()->getFormFields());
+        $unprefixed = array_filter($keys, static fn ($key): bool => !str_starts_with((string) $key, 'onpay_'));
+
+        $this->assertSame([], array_values($unprefixed));
+    }
+
     public function testNumericParameterKeyIsIgnored(): void {
         $fields = $this->window()->getFormFields();
         $fields[0] = 'stray';
