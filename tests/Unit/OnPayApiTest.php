@@ -87,7 +87,7 @@ class OnPayApiTest extends TestCase {
     #[DataProvider('invalidGatewayIdProvider')]
     public function testInitializeThrowsOnInvalidGatewayId(string $gatewayId): void {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('gateway_id must be a non-empty alphanumeric value');
+        $this->expectExceptionMessage('gatewayId must be a non-empty alphanumeric value');
         new OnPayAPI($this->createMock(TokenStorageInterface::class), [
             'client_id' => 'test_id',
             'redirect_uri' => 'test_uri',
