@@ -30,8 +30,6 @@ fork replaces both:
   an empty verifier. Set the `pkce_method` option and carry the verifier across the redirect
   with `getPkceCode()` / `setPkceCode()`.
 - **Malformed JSON and transport errors raise typed exceptions** rather than yielding `null`.
-- **`getLastHttpRequest()` / `getLastHttpResponse()` return the PSR-7 messages**, not a
-  hand-rolled partial copy of them.
 - **Payment-window verification is timing-safe and no longer over-collects fields.**
   `validatePayment()` compares the HMAC with `hash_equals()`, and it selects the signed
   fields by the `onpay_` *prefix* the window actually writes rather than by substring, so an
@@ -247,8 +245,7 @@ $onPayAPI = new \OnPay\OnPayAPI(
 );
 ```
 
-All parameters are typed, so a DI container can autowire them. It can also be replaced later
-with `setHttpClient()`.
+All parameters are typed, so a DI container can autowire them.
 
 ### Logging
 
