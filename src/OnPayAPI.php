@@ -26,11 +26,12 @@ use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use Psr\Log\LoggerInterface;
+use Tomsommer\OAuth2\Client\Provider\OnPay as OnPayProvider;
 
 class OnPayAPI implements LoggerAwareInterface {
     use LoggerAwareTrait;
 
-    const SDK_VERSION = '2.1.0';
+    const SDK_VERSION = '2.2.0';
 
     protected TokenStorageInterface $tokenStorage;
 
@@ -102,16 +103,6 @@ class OnPayAPI implements LoggerAwareInterface {
 
         $this->options = array_merge($defaultOptions, $options);
 
-        if (isset($this->options['gateway_id'])) {
-            $gatewayId = (string) $this->options['gateway_id'];
-            if ($gatewayId === '' || !preg_match('/^[A-Z0-9]+$/', $gatewayId)) {
-                throw new \InvalidArgumentException('gateway_id must be a non-empty alphanumeric value');
-            }
-            $authUrl = $this->options['base_authorize_uri'] . '/' . $gatewayId . '/oauth2/authorize';
-        } else {
-            $authUrl = $this->options['base_authorize_uri'] . '/oauth2/authorize';
-        }
-
         // Set redirect_uri to an empty value if none is sent
         if (!array_key_exists('redirect_uri', $this->options)) {
             $this->options['redirect_uri'] = '';
@@ -126,8 +117,11 @@ class OnPayAPI implements LoggerAwareInterface {
             [
                 'clientId' => $this->options['client_id'],
                 'redirectUri' => $this->options['redirect_uri'],
-                'urlAuthorize' => $authUrl,
-                'urlAccessToken' => $this->options['base_uri'] . '/oauth2/access_token',
+                'gatewayId' => isset($this->options['gateway_id'])
+                    ? (string) $this->options['gateway_id']
+                    : null,
+                'baseAuthorizeUri' => $this->options['base_authorize_uri'],
+                'baseUri' => $this->options['base_uri'],
                 'scopes' => [$this->scope],
                 'pkceMethod' => $this->options['pkce_method'] ?? null,
             ],

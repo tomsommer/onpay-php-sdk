@@ -2,7 +2,13 @@
     "name": "tomsommer/onpay-php-sdk",
     "type": "library",
     "description": "Modernized PHP SDK for the OnPay.io API",
-    "keywords": ["onpay", "payment", "sdk", "psr-18", "oauth2"],
+    "keywords": [
+        "onpay",
+        "payment",
+        "sdk",
+        "psr-18",
+        "oauth2"
+    ],
     "homepage": "https://github.com/tomsommer/onpay-php-sdk",
     "license": "MIT",
     "support": {
@@ -30,7 +36,8 @@
         "psr/http-client": "^1.0",
         "psr/http-factory": "^1.0",
         "psr/http-message": "^1.0 || ^2.0",
-        "psr/log": "^1.1 || ^2.0 || ^3.0"
+        "psr/log": "^1.1 || ^2.0 || ^3.0",
+        "tomsommer/oauth2-onpay": "^1.0"
     },
     "require-dev": {
         "guzzlehttp/guzzle": "^7.5",

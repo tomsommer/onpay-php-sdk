@@ -17,8 +17,10 @@ fork replaces both:
 
 - **OAuth 2.0 is handled by [`league/oauth2-client`](https://oauth2-client.thephpleague.com/).**
   The vendored `OnPay\OAuth\Client\*` tree is gone. Authorization, code exchange and token
-  refresh go through a real, maintained library, and the provider is exposed via
-  `getProvider()` so you can drive the flow yourself.
+  refresh go through a real, maintained library via
+  [`tomsommer/oauth2-onpay`](https://github.com/tomsommer/oauth2-onpay), a standalone League
+  provider client. It is exposed via `getProvider()` so you can drive the flow yourself, or
+  use it on its own if you only need authorization and not the API client.
 - **HTTP goes through any [PSR-18](https://www.php-fig.org/psr/psr-18/) client.** Pass your
   own client and [PSR-17](https://www.php-fig.org/psr/psr-17/) factories, or let them be
   auto-discovered. Symfony HttpClient, Guzzle and Buzz all work.
@@ -59,6 +61,9 @@ Breaking changes:
   so cast it to string.
 - `TokenStorageInterface` now declares `getToken(): ?string` and `saveToken(string $token): void`.
   Add the types to your own implementation.
+- `OnPay\OnPayProvider` moved out to `Tomsommer\OAuth2\Client\Provider\OnPay` in the
+  `tomsommer/oauth2-onpay` package, which the SDK now requires. `getProvider()` returns it.
+  An invalid `gateway_id` now reports `gatewayId must be a non-empty alphanumeric value`.
 - `PaymentWindow::setSecret()` is typed `?string`, and `getSecret()` returns `?string`.
 - `PaymentWindow::getFormFields()`, `generateSecret()` and `validatePayment()` throw
   `OnPay\API\Exception\MissingDataException` when no window secret has been set, rather
