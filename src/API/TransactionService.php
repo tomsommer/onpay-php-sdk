@@ -10,6 +10,7 @@ use OnPay\API\Transaction\SimpleTransaction;
 use OnPay\API\Transaction\TransactionCollection;
 use OnPay\API\Util\Pagination;
 use OnPay\Http\ApiClientInterface;
+use OnPay\API\Util\ResponseParser;
 
 class TransactionService {
 
@@ -33,10 +34,10 @@ class TransactionService {
         if (empty($identifier)) {
             throw new ApiException('Transaction number must be provided');
         }
-        $result = $this->api->get('transaction/' . urlencode($identifier));
+        $result = $this->api->get('transaction/' . rawurlencode($identifier));
 
-        $detailedTransaction = new DetailedTransaction($result['data']);
-        $detailedTransaction->setLinks($result['links']);
+        $detailedTransaction = new DetailedTransaction(ResponseParser::data($result));
+        $detailedTransaction->setLinks(ResponseParser::links($result));
         return $detailedTransaction;
     }
 
@@ -62,15 +63,15 @@ class TransactionService {
 
         $transactions = [];
 
-        foreach ($results['data'] as $result) {
+        foreach (ResponseParser::collection($results) as $result) {
             $transaction = new SimpleTransaction($result);
-            $transaction->setLinks($result['links']);
+            $transaction->setLinks(ResponseParser::links($result));
             $transactions[] = $transaction;
         }
 
         $collection = new TransactionCollection();
         $collection->transactions = $transactions;
-        $collection->pagination = new Pagination($results['meta']['pagination']);
+        $collection->pagination = new Pagination(ResponseParser::pagination($results));
 
         return $collection;
     }
@@ -117,9 +118,9 @@ class TransactionService {
             
         }
 
-        $result = $this->api->post('transaction/' . $transactionNumber . '/capture', $jsonBody);
-        $transaction = new DetailedTransaction($result['data']);
-        $transaction->setLinks($result['links']);
+        $result = $this->api->post('transaction/' . rawurlencode($transactionNumber) . '/capture', $jsonBody);
+        $transaction = new DetailedTransaction(ResponseParser::data($result));
+        $transaction->setLinks(ResponseParser::links($result));
 
         return $transaction;
     }
@@ -133,9 +134,9 @@ class TransactionService {
         if (empty($transactionNumber)) {
             throw new ApiException('Transaction number must be provided');
         }
-        $result = $this->api->post('transaction/' . $transactionNumber . '/cancel');
-        $transaction = new DetailedTransaction($result['data']);
-        $transaction->setLinks($result['links']);
+        $result = $this->api->post('transaction/' . rawurlencode($transactionNumber) . '/cancel');
+        $transaction = new DetailedTransaction(ResponseParser::data($result));
+        $transaction->setLinks(ResponseParser::links($result));
         return $transaction;
     }
 
@@ -180,9 +181,9 @@ class TransactionService {
             ];
         }
 
-        $result = $this->api->post('transaction/' . $transactionNumber . '/refund', $jsonBody);
-        $transaction = new DetailedTransaction($result['data']);
-        $transaction->setLinks($result['links']);
+        $result = $this->api->post('transaction/' . rawurlencode($transactionNumber) . '/refund', $jsonBody);
+        $transaction = new DetailedTransaction(ResponseParser::data($result));
+        $transaction->setLinks(ResponseParser::links($result));
 
         return $transaction;
     }

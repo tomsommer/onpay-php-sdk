@@ -473,7 +473,11 @@ class PaymentWindow
                 } else {
                     $key .= strtolower($field);
                 }
-                $fields[$key] = $this->{$field};
+                $value = $this->{$field};
+                // http_build_query() renders a bool as 1/0 when signing, but the
+                // raw bool renders as an empty string in a form field, so the
+                // posted window would never match its own signature.
+                $fields[$key] = is_bool($value) ? ($value ? '1' : '0') : $value;
             }
         }
 

@@ -43,6 +43,34 @@ class PaymentWindowTest extends TestCase {
         $this->assertTrue($window->isValid());
     }
 
+    /**
+     * http_build_query() renders a bool as 1/0 when the window signs itself, but
+     * a raw bool renders as an empty string in a form field, so a window built
+     * with setTestMode(false) would post a payload that fails its own signature.
+     */
+    public function testBooleanFieldsAreSignedAndRenderedIdentically(): void {
+        $window = $this->window();
+        $window->setTestMode(false);
+        $window->setSurchargeEnabled(false);
+
+        $fields = $window->getFormFields();
+
+        foreach ($fields as $key => $value) {
+            $this->assertIsNotBool($value, $key . ' must not reach the form as a raw bool');
+        }
+        $this->assertSame('0', $fields['onpay_testmode']);
+        $this->assertTrue($this->window()->validatePayment($fields));
+    }
+
+    public function testBooleanTrueIsRenderedAsOne(): void {
+        $window = $this->window();
+        $window->setTestMode(true);
+
+        $fields = $window->getFormFields();
+        $this->assertSame('1', $fields['onpay_testmode']);
+        $this->assertTrue($this->window()->validatePayment($fields));
+    }
+
     public function testFormFieldsValidateAgainstThemselves(): void {
         $fields = $this->window()->getFormFields();
 

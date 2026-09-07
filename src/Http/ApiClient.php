@@ -96,13 +96,22 @@ class ApiClient implements ApiClientInterface, LoggerAwareInterface
     private function handleResponse(int $statusCode, string $body, string $contentType, string $method, string $uri): mixed
     {
         if ($statusCode >= 200 && $statusCode < 300) {
-            return $this->decodeBody($body, $statusCode);
+            $decoded = $this->decodeBody($body, $statusCode);
+            // Valid JSON that is not an object leaves every caller indexing into
+            // a scalar. Reject it here so it arrives as an ApiException.
+            if (null !== $decoded && !is_array($decoded)) {
+                throw new ApiException('Unexpected API response: expected an object.', $statusCode);
+            }
+
+            return $decoded;
         }
 
         $message = '';
         if ('' !== $body && str_contains($contentType, 'application/json')) {
             $decoded = $this->decodeBody($body, $statusCode);
-            if (is_array($decoded) && isset($decoded['errors'][0]['message'])) {
+            // The message is only useful if it is a string; anything else would
+            // otherwise reach the exception constructor and raise a TypeError.
+            if (is_array($decoded) && isset($decoded['errors'][0]['message']) && is_string($decoded['errors'][0]['message'])) {
                 $message = $decoded['errors'][0]['message'];
             }
         }

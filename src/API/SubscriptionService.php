@@ -12,6 +12,7 @@ use OnPay\API\Transaction\DetailedTransaction;
 use OnPay\API\Exception\ApiException;
 use OnPay\API\Util\Pagination;
 use OnPay\Http\ApiClientInterface;
+use OnPay\API\Util\ResponseParser;
 
 class SubscriptionService
 {
@@ -60,15 +61,15 @@ class SubscriptionService
         $results = $this->api->get('subscription/?' . $queryString);
         $subscriptions = [];
 
-        foreach ($results['data'] as $result) {
+        foreach (ResponseParser::collection($results) as $result) {
             $subscription = new SimpleSubscription($result);
-            $subscription->setLinks($result['links']);
+            $subscription->setLinks(ResponseParser::links($result));
             $subscriptions[] = $subscription;
         }
 
         $collection = new SubscriptionCollection();
         $collection->subscriptions = $subscriptions;
-        $collection->pagination = new Pagination($results['meta']['pagination']);
+        $collection->pagination = new Pagination(ResponseParser::pagination($results));
 
         return $collection;
     }
@@ -84,9 +85,9 @@ class SubscriptionService
             throw new ApiException('Subscription ID must be provided');
         }
 
-        $result = $this->api->get('subscription/' . $subscriptionId);
-        $subscription = new DetailedSubscription($result['data']);
-        $subscription->setLinks($result['links']);
+        $result = $this->api->get('subscription/' . rawurlencode($subscriptionId));
+        $subscription = new DetailedSubscription(ResponseParser::data($result));
+        $subscription->setLinks(ResponseParser::links($result));
 
         return $subscription;
     }
@@ -102,9 +103,9 @@ class SubscriptionService
             throw new ApiException('Subscription ID must be provided');
         }
 
-        $result = $this->api->post('subscription/' . $subscriptionId . '/cancel');
-        $subscription = new DetailedSubscription($result['data']);
-        $subscription->setLinks($result['links']);
+        $result = $this->api->post('subscription/' . rawurlencode($subscriptionId) . '/cancel');
+        $subscription = new DetailedSubscription(ResponseParser::data($result));
+        $subscription->setLinks(ResponseParser::links($result));
         return $subscription;
     }
 
@@ -132,10 +133,10 @@ class SubscriptionService
             ],
         ];
 
-        $result = $this->api->post('subscription/' . $uuid . '/authorize', $json);
+        $result = $this->api->post('subscription/' . rawurlencode($uuid) . '/authorize', $json);
 
-        $transaction = new DetailedTransaction($result['data']);
-        $transaction->setLinks($result['links']);
+        $transaction = new DetailedTransaction(ResponseParser::data($result));
+        $transaction->setLinks(ResponseParser::links($result));
 
         return $transaction;
     }
