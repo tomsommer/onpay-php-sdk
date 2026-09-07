@@ -31,7 +31,7 @@ use Tomsommer\OAuth2\Client\Provider\OnPay as OnPayProvider;
 class OnPayAPI implements LoggerAwareInterface {
     use LoggerAwareTrait;
 
-    const SDK_VERSION = '2.2.0';
+    const SDK_VERSION = '2.3.0';
 
     protected TokenStorageInterface $tokenStorage;
 

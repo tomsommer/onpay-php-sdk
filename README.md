@@ -64,6 +64,8 @@ Breaking changes:
 - `OnPay\OnPayProvider` moved out to `Tomsommer\OAuth2\Client\Provider\OnPay` in the
   `tomsommer/oauth2-onpay` package, which the SDK now requires. `getProvider()` returns it.
   An invalid `gateway_id` now reports `gatewayId must be a non-empty alphanumeric value`.
+- `PaymentService::createNewPayment()` takes a typed `PaymentWindow`. Passing anything else
+  raised `InvalidFormatException` before and now raises a `TypeError`.
 - `PaymentWindow::setSecret()` is typed `?string`, and `getSecret()` returns `?string`.
 - `PaymentWindow::getFormFields()`, `generateSecret()` and `validatePayment()` throw
   `OnPay\API\Exception\MissingDataException` when no window secret has been set, rather

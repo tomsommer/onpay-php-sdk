@@ -30,7 +30,7 @@ class Cart {
      * @param int $price Amount in minor units, including tax and discount
      * @param int $tax Amount in minor monetary units
      * @param int|null $discount Amount in minor monetary units
-     * @param int|null $name Name that applies to the shipping
+     * @param string|null $name Name that applies to the shipping
      * @return void
      */
     public function setShipping($price, $tax, $discount = null, $name = null) {
@@ -50,7 +50,7 @@ class Cart {
      *
      * @param int $price Amount in minor units, including tax
      * @param int $tax Amount in minor monetary units
-     * @param int $name Name that applies to the handling
+     * @param string|null $name Name that applies to the handling
      * @return void
      */
     public function setHandling($price, $tax, $name = null) {

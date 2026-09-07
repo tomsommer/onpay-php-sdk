@@ -27,7 +27,7 @@ class DetailedTransaction extends SimpleTransaction {
         $this->hasCardholderData = isset($data['has_cardholder_data']) ? $data['has_cardholder_data'] : false;
 
         $this->cardholderData = null;
-        if(isset($data['cardholder_data']) && null !== $data['cardholder_data']) {
+        if (isset($data['cardholder_data'])) {
             $this->cardholderData = new CardholderData($data['cardholder_data']);
         }
 

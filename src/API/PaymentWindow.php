@@ -52,9 +52,9 @@ class PaymentWindow
     private $platform;
     private $expiration;
     /**
-     * @var PaymentInfo
+     * @var PaymentInfo|null
      */
-    private $info;
+    private $info = null;
     /**
      * @var Cart|null
      */
@@ -340,9 +340,9 @@ class PaymentWindow
      * Concats platform parameters to a / delimited string
      * Examples: 'php-sdk/1/1', 'php-sdk/1', 'php-sdk//1'
      *
-     * @param $platform
-     * @param null $version
-     * @param null $systemVersion
+     * @param string $platform
+     * @param string|null $version
+     * @param string|null $systemVersion
      */
     public function setPlatform($platform, $version = null, $systemVersion = null) {
         $string = $platform;
@@ -450,7 +450,7 @@ class PaymentWindow
     private function buildAvailableFields($withPrefix = true){
         $fields = [];
 
-        if (isset($this->info)) {
+        if (null !== $this->info) {
             if($withPrefix){
                 $fields = array_merge($fields, $this->info->getFields());
             } else {

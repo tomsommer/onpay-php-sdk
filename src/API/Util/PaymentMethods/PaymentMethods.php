@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OnPay\API\Util\PaymentMethods;
 
-use OnPay\API\Exception\ApiException;
 use OnPay\API\Util\Currency;
 use OnPay\API\Util\PaymentMethods\Methods\Anyday;
 use OnPay\API\Util\PaymentMethods\Methods\ApplePay;
@@ -27,7 +26,6 @@ class PaymentMethods {
     private $paymentMethods = [];
 
     /**
-     * @throws ApiException
      */
     public function __construct() {
         $this->populatePaymentMethods();
@@ -35,7 +33,6 @@ class PaymentMethods {
 
     /**
      * @return void
-     * @throws ApiException
      */
     private function populatePaymentMethods() {
         $this->paymentMethods[] = new Anyday();

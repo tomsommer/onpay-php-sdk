@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OnPay\API;
 
-use OnPay\API\Exception\InvalidFormatException;
 use OnPay\API\Exception\MissingDataException;
 use OnPay\API\Payment\SimplePayment;
 use OnPay\OnPayAPI;
@@ -47,21 +46,15 @@ class PaymentService {
      * @throws Exception\ApiException
      * @throws Exception\ConnectionException
      * @throws Exception\TokenException
-     * @throws InvalidFormatException
      * @throws MissingDataException
      */
-    public function createNewPayment($paymentWindow) {
+    public function createNewPayment(PaymentWindow $paymentWindow) {
         // If api has a platform string, and window platform is not modified.
-        if (null !== $this->api->getPlatform() && $paymentWindow::SDK_VERSION_STRING === $paymentWindow->getPlatform()) {
+        if ($paymentWindow::SDK_VERSION_STRING === $paymentWindow->getPlatform()) {
             $paymentWindow->setPlatform($this->api->getPlatform());
         }
 
         $this->paymentWindow = $paymentWindow;
-
-        //We can only proceed with this request if we have a valid PaymentWindow Object.
-        if (!$this->paymentWindow instanceof PaymentWindow) {
-            throw new InvalidFormatException("Creating a payment request requires a valid PaymentWindow object.");
-        }
 
         //Use the PaymentWindow and PaymentInfo objects to build the data array.
         $this->buildPaymentDataFromSubmittedFields();
