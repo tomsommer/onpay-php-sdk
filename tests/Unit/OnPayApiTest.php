@@ -135,9 +135,10 @@ class OnPayApiTest extends TestCase {
         $api->ping();
 
         $this->assertSame('GET', $api->getLastHttpRequest()->getMethod());
-        $this->assertSame('https://api.onpay.io/v1/ping', $api->getLastHttpRequest()->getUri());
+        $this->assertSame('https://api.onpay.io/v1/ping', (string) $api->getLastHttpRequest()->getUri());
         $this->assertSame(200, $api->getLastHttpResponse()->getStatusCode());
-        $this->assertSame('{"ping":"pong"}', $api->getLastHttpResponse()->getBody());
+        // The SDK already read the body to decode it; the stream must be rewound for callers.
+        $this->assertSame('{"ping":"pong"}', (string) $api->getLastHttpResponse()->getBody());
     }
 
     public function testApiErrorMessageIsExtractedFromJsonBody(): void {

@@ -11,14 +11,14 @@ use OnPay\API\Exception\ApiException;
 use OnPay\API\Exception\ConnectionException;
 use OnPay\API\Exception\TokenException;
 use OnPay\API\GatewayService;
-use OnPay\API\Http\Request as HttpRequest;
-use OnPay\API\Http\Response as HttpResponse;
 use OnPay\API\PaymentService;
 use OnPay\API\SubscriptionService;
 use OnPay\API\TransactionService;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
@@ -45,9 +45,9 @@ class OnPayAPI implements LoggerAwareInterface {
 
     protected string $scope = 'full';
 
-    protected ?HttpRequest $request = null;
+    protected ?RequestInterface $request = null;
 
-    protected ?HttpResponse $response = null;
+    protected ?ResponseInterface $response = null;
 
     protected ClientInterface $httpClient;
 
@@ -305,7 +305,8 @@ class OnPayAPI implements LoggerAwareInterface {
             $request = $request->withBody($this->streamFactory->createStream($body));
         }
 
-        $this->setLastHttpRequest($method, $uri, $headers, null === $body ? '' : $body);
+        $this->request = $request;
+        $this->response = null;
 
         try {
             $response = $this->httpClient->sendRequest($request);
@@ -315,7 +316,7 @@ class OnPayAPI implements LoggerAwareInterface {
 
         $statusCode = $response->getStatusCode();
         $responseBody = (string) $response->getBody();
-        $this->setLastHttpResponse($statusCode, $responseBody);
+        $this->response = $this->rewound($response);
 
         return $this->handleResponse($statusCode, $responseBody, $response->getHeaderLine('content-type'));
     }
@@ -497,7 +498,7 @@ class OnPayAPI implements LoggerAwareInterface {
             $this->logger->warning('OnPay HTTP request failed', [
                 'status' => $statusCode,
                 'method' => $this->request->getMethod(),
-                'uri' => $this->request->getUri(),
+                'uri' => (string) $this->request->getUri(),
                 'response' => $body,
             ]);
             return;
@@ -506,7 +507,7 @@ class OnPayAPI implements LoggerAwareInterface {
         \error_log(sprintf(
             'REQUEST=%s %s, RESPONSE=%d %s',
             $this->request->getMethod(),
-            $this->request->getUri(),
+            (string) $this->request->getUri(),
             $statusCode,
             $body
         ));
@@ -553,46 +554,30 @@ class OnPayAPI implements LoggerAwareInterface {
     }
 
     /**
-     * @param string $method
-     * @param string $uri
-     * @param array $headers
-     * @param string $body
-     * @return void
+     * The SDK reads the response body to decode it, which leaves the stream at
+     * its end. Rewind it so callers reading getLastHttpResponse() get the body
+     * rather than an empty string.
      */
-    private function setLastHttpRequest(string $method, string $uri, array $headers, string $body): void {
-        $httpRequest = new HttpRequest();
-        $httpRequest->setMethod($method);
-        $httpRequest->setUri($uri);
-        $httpRequest->setHeaders($headers);
-        $httpRequest->setBody($body);
-        $this->request = $httpRequest;
+    private function rewound(ResponseInterface $response): ResponseInterface {
+        $body = $response->getBody();
+        if ($body->isSeekable()) {
+            $body->rewind();
+        }
+
+        return $response;
     }
 
     /**
-     * @param int $statusCode
-     * @param string $body
-     * @return void
+     * Returns the last HTTP request sent to the API.
      */
-    private function setLastHttpResponse(int $statusCode, string $body): void {
-        $httpResponse = new HttpResponse();
-        $httpResponse->setStatusCode($statusCode);
-        $httpResponse->setBody($body);
-        $this->response = $httpResponse;
-    }
-
-    /**
-     * Returns the last HTTP Request send to the API
-     * @return HttpRequest
-     */
-    public function getLastHttpRequest(): ?HttpRequest {
+    public function getLastHttpRequest(): ?RequestInterface {
         return $this->request;
     }
 
     /**
-     * Returns the last HTTP Response received from the API
-     * @return HttpResponse
+     * Returns the last HTTP response received from the API.
      */
-    public function getLastHttpResponse(): ?HttpResponse {
+    public function getLastHttpResponse(): ?ResponseInterface {
         return $this->response;
     }
 }

@@ -28,6 +28,8 @@ fork replaces both:
   an empty verifier. Set the `pkce_method` option and carry the verifier across the redirect
   with `getPkceCode()` / `setPkceCode()`.
 - **Malformed JSON and transport errors raise typed exceptions** rather than yielding `null`.
+- **`getLastHttpRequest()` / `getLastHttpResponse()` return the PSR-7 messages**, not a
+  hand-rolled partial copy of them.
 - **PHP 8.2+, native types on the core classes, and a CI suite** running PHPUnit on
   PHP 8.2/8.3/8.4 plus PHPStan.
 
@@ -41,6 +43,12 @@ Breaking changes:
 
 - The `OnPay\OAuth\Client\*`, `OnPay\InternalTokenStorage`, `OnPay\Session` and
   `OnPay\CurlHttpClientLogger` classes were removed. Nothing in the public API referenced them.
+- `OnPay\API\Http\Request` and `OnPay\API\Http\Response` were removed too. They existed
+  only to carry the last request and response, which are now the PSR-7 messages themselves:
+  `getLastHttpRequest()` returns a `Psr\Http\Message\RequestInterface` and
+  `getLastHttpResponse()` a `ResponseInterface`, with the body stream rewound. Callers get the
+  real headers and status instead of a partial copy; `getUri()` now returns a `UriInterface`,
+  so cast it to string.
 - `TokenStorageInterface` now declares `getToken(): ?string` and `saveToken(string $token): void`.
   Add the types to your own implementation.
 - Stored tokens are written in `league/oauth2-client` format. Tokens written by 1.x are still
