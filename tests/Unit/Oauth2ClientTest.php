@@ -114,6 +114,64 @@ class Oauth2ClientTest extends TestCase {
         $this->assertSame($this->clientId, $body['client_id']);
     }
 
+    public function testStateIsExposedAfterAuthorize(): void {
+        $api = $this->api([]);
+        $url = $api->authorize();
+
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+        $this->assertNotEmpty($api->getState());
+        $this->assertSame($query['state'], $api->getState());
+    }
+
+    /**
+     * Without a state check the callback cannot be told apart from one an
+     * attacker made the visitor follow, so a mismatch must not spend the code.
+     */
+    public function testMismatchedStateRejectsTheCallbackWithoutSpendingTheCode(): void {
+        $api = $this->api([
+            new GuzzleResponse(200, ['content-type' => 'application/json'], (string) json_encode([
+                'access_token' => 'should_never_be_requested',
+            ])),
+        ]);
+        $api->authorize();
+
+        try {
+            $api->finishAuthorize('a_code', 'state_from_attacker', $api->getState());
+            $this->fail('Expected a TokenException');
+        } catch (TokenException $e) {
+            $this->assertStringContainsString('state mismatch', $e->getMessage());
+        }
+
+        $this->assertCount(0, $this->sentRequests, 'the token endpoint must not be contacted');
+    }
+
+    public function testMatchingStateAllowsTheExchange(): void {
+        $tokenStorage = $this->createMock(TokenStorageInterface::class);
+        $tokenStorage->expects($this->once())->method('saveToken');
+
+        $api = $this->api([
+            new GuzzleResponse(200, ['content-type' => 'application/json'], (string) json_encode([
+                'access_token' => 'granted',
+                'token_type' => 'Bearer',
+                'expires_in' => 3600,
+            ])),
+        ], $tokenStorage);
+        $api->authorize();
+        $state = $api->getState();
+
+        $api->finishAuthorize('a_code', $state, $state);
+        $this->assertCount(1, $this->sentRequests);
+    }
+
+    /** A half-supplied pair is a programming error, not a pass. */
+    public function testStateCheckCannotBeHalfSupplied(): void {
+        $api = $this->api([]);
+        $api->authorize();
+
+        $this->expectException(TokenException::class);
+        $api->finishAuthorize('a_code', $api->getState(), null);
+    }
+
     public function testFinishAuthorizeThrowsTokenExceptionOnRejectedCode(): void {
         $api = $this->api([
             new GuzzleResponse(400, ['content-type' => 'application/json'], json_encode([

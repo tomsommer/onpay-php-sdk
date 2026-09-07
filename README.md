@@ -26,6 +26,10 @@ fork replaces both:
   auto-discovered. Symfony HttpClient, Guzzle and Buzz all work.
 - **Failures are reported to a [PSR-3](https://www.php-fig.org/psr/psr-3/) logger**
   instead of `error_log()`. `OnPayAPI` implements `LoggerAwareInterface`.
+- **The OAuth callback can verify `state`.** Hand `finishAuthorize()` the state from
+  the callback and the one you stored before redirecting and they are compared with
+  `hash_equals()` before the code is spent. Upstream compared against `crypt()` of a
+  fixed value, which is not a check at all.
 - **PKCE is opt-in and actually works.** Upstream generated a code challenge and then sent
   an empty verifier. Set the `pkce_method` option and carry the verifier across the redirect
   with `getPkceCode()` / `setPkceCode()`.
@@ -202,9 +206,16 @@ $onPayAPI = new \OnPay\OnPayAPI($tokenStorage, [
 if (isset($_GET['auth'])) {
     if (!isset($_GET['code'])) {
         $authUrl = $onPayAPI->authorize();
+        // Store the state so the callback can be tied back to this request.
+        $_SESSION['onpay_oauth_state'] = $onPayAPI->getState();
         header('Location: ' . $authUrl);
     } else {
-        $onPayAPI->finishAuthorize($_GET['code']);
+        $onPayAPI->finishAuthorize(
+            $_GET['code'],
+            $_GET['state'] ?? null,
+            $_SESSION['onpay_oauth_state'] ?? null
+        );
+        unset($_SESSION['onpay_oauth_state']);
         echo 'Authorized :tada:' . PHP_EOL;
     }
     exit;
@@ -269,11 +280,12 @@ $onPayAPI = new \OnPay\OnPayAPI($tokenStorage, [
 
 // Before redirecting, store the verifier next to the OAuth state.
 $authUrl = $onPayAPI->authorize();
+$_SESSION['onpay_oauth_state'] = $onPayAPI->getState();
 $_SESSION['onpay_pkce'] = $onPayAPI->getPkceCode();
 
 // On the callback, restore it before exchanging the code.
 $onPayAPI->setPkceCode($_SESSION['onpay_pkce']);
-$onPayAPI->finishAuthorize($_GET['code']);
+$onPayAPI->finishAuthorize($_GET['code'], $_GET['state'] ?? null, $_SESSION['onpay_oauth_state'] ?? null);
 ```
 
 ## Payments
