@@ -65,7 +65,7 @@ class PaymentService {
         //Build data as array in correct format as required by the API endpoint
         $requestData = $this->buildCreatePaymentData();
 
-        $result = $this->api->post(self::CREATE_PAYMENT_API, $requestData);
+        $result = $this->api->request('POST', self::CREATE_PAYMENT_API, $requestData);
 
         return new SimplePayment($result);
     }

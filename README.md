@@ -428,6 +428,63 @@ if($onPayAPI->isAuthorized()) {
 
 ```
 
+## Transaction events
+
+Every event across the gateway's transactions, oldest first. Paged by cursor
+rather than page number: keep the cursor and pass it back to carry on.
+
+```php
+$cursor = $yourStorage->get('onpay_event_cursor');
+
+do {
+    $events = $onPayAPI->transaction()->getEvents($cursor);
+
+    foreach ($events->events as $event) {
+        // $event->action is one of TransactionEvent::ACTION_*
+        // $event->transaction, ->amount, ->successful, ->dateTime, ->resultText
+    }
+
+    if ($events->hasMore()) {
+        $cursor = $events->nextCursor;
+        $yourStorage->set('onpay_event_cursor', $cursor);
+    }
+} while ($events->hasMore());
+```
+
+An empty cursor means nothing further right now; the one you already hold stays
+valid for asking again later.
+
+## Acquirers, providers and wallets
+
+```php
+foreach ($onPayAPI->acquirer()->getAcquirers() as $acquirer) {
+    echo $acquirer->name, $acquirer->active ? " (active)\n" : "\n";
+}
+
+$nets = $onPayAPI->acquirer()->getAcquirer('nets');
+$nets->getSetting('mcc');
+$nets->hasLowValueScaExemption();
+
+// Which fields are writable depends on the acquirer.
+$onPayAPI->acquirer()->updateAcquirer('nets', ['active' => true, 'mcc' => '5734']);
+
+$onPayAPI->acquirer()->getProviders();   // Klarna, ViaBill, ...
+$onPayAPI->acquirer()->getWallets();     // applepay, mobilepay, ...
+```
+
+Only `name` and `active` are common to every acquirer. The rest differs — Nets
+carries card BINs, Clearhaus an API key — so it is kept as returned and reached
+through `getSetting()` rather than flattened into properties that would be null
+for most acquirers.
+
+## Payment window languages
+
+```php
+foreach ($onPayAPI->gateway()->getPaymentWindowLanguages() as $language) {
+    echo $language->locale, "\n";   // da, de, en, ...
+}
+```
+
 ## Subscriptions
 
 ```php

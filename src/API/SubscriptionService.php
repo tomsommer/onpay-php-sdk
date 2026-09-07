@@ -58,7 +58,7 @@ class SubscriptionService
                 'direction' => $direction
             ]);
 
-        $results = $this->api->get('subscription/?' . $queryString);
+        $results = $this->api->request('GET', 'subscription/?' . $queryString);
         $subscriptions = [];
 
         foreach (ResponseParser::collection($results) as $result) {
@@ -85,7 +85,7 @@ class SubscriptionService
             throw new ApiException('Subscription ID must be provided');
         }
 
-        $result = $this->api->get('subscription/' . rawurlencode($subscriptionId));
+        $result = $this->api->request('GET', 'subscription/' . rawurlencode($subscriptionId));
         $subscription = new DetailedSubscription(ResponseParser::data($result));
         $subscription->setLinks(ResponseParser::links($result));
 
@@ -103,7 +103,7 @@ class SubscriptionService
             throw new ApiException('Subscription ID must be provided');
         }
 
-        $result = $this->api->post('subscription/' . rawurlencode($subscriptionId) . '/cancel');
+        $result = $this->api->request('POST', 'subscription/' . rawurlencode($subscriptionId) . '/cancel');
         $subscription = new DetailedSubscription(ResponseParser::data($result));
         $subscription->setLinks(ResponseParser::links($result));
         return $subscription;
@@ -133,7 +133,7 @@ class SubscriptionService
             ],
         ];
 
-        $result = $this->api->post('subscription/' . rawurlencode($uuid) . '/authorize', $json);
+        $result = $this->api->request('POST', 'subscription/' . rawurlencode($uuid) . '/authorize', $json);
 
         $transaction = new DetailedTransaction(ResponseParser::data($result));
         $transaction->setLinks(ResponseParser::links($result));

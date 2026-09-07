@@ -46,8 +46,8 @@ class TransactionServiceTest extends TestCase {
             'links' => ['self' => '/transaction/' . $uuid]
         ];
 
-        $this->apiMock->method('get')
-            ->with('transaction/' . $uuid)
+        $this->apiMock->method('request')
+            ->with('GET', 'transaction/' . $uuid)
             ->willReturn($mockResult);
 
         $service = new TransactionService($this->apiMock);
@@ -64,8 +64,8 @@ class TransactionServiceTest extends TestCase {
             'links' => ['self' => '/transaction/' . $uuid]
         ];
 
-        $this->apiMock->method('post')
-            ->with('transaction/' . $uuid . '/capture', $this->anything())
+        $this->apiMock->method('request')
+            ->with('POST', 'transaction/' . $uuid . '/capture', $this->anything())
             ->willReturn($mockResult);
 
         $service = new TransactionService($this->apiMock);

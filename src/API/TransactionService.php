@@ -8,6 +8,8 @@ use OnPay\API\Exception\ApiException;
 use OnPay\API\Transaction\DetailedTransaction;
 use OnPay\API\Transaction\SimpleTransaction;
 use OnPay\API\Transaction\TransactionCollection;
+use OnPay\API\Transaction\TransactionEvent;
+use OnPay\API\Transaction\TransactionEventCollection;
 use OnPay\API\Util\Pagination;
 use OnPay\Http\ApiClientInterface;
 use OnPay\API\Util\ResponseParser;
@@ -34,7 +36,7 @@ class TransactionService {
         if ('' === $identifier) {
             throw new ApiException('Transaction number must be provided');
         }
-        $result = $this->api->get('transaction/' . rawurlencode($identifier));
+        $result = $this->api->request('GET', 'transaction/' . rawurlencode($identifier));
 
         $detailedTransaction = new DetailedTransaction(ResponseParser::data($result));
         $detailedTransaction->setLinks(ResponseParser::links($result));
@@ -59,7 +61,7 @@ class TransactionService {
             $direction = 'DESC';
         }
         $queryString = http_build_query(['page' => $page, 'page_size' => $pageSize, 'order_by' => $orderBy, 'query' => $query, 'status' => $status, 'date_after' => $dateAfter, 'date_before' => $dateBefore, 'direction' => $direction]);
-        $results = $this->api->get('transaction/?' . $queryString);
+        $results = $this->api->request('GET', 'transaction/?' . $queryString);
 
         $transactions = [];
 
@@ -118,7 +120,7 @@ class TransactionService {
             
         }
 
-        $result = $this->api->post('transaction/' . rawurlencode($transactionNumber) . '/capture', $jsonBody);
+        $result = $this->api->request('POST', 'transaction/' . rawurlencode($transactionNumber) . '/capture', $jsonBody);
         $transaction = new DetailedTransaction(ResponseParser::data($result));
         $transaction->setLinks(ResponseParser::links($result));
 
@@ -134,7 +136,7 @@ class TransactionService {
         if ('' === $transactionNumber) {
             throw new ApiException('Transaction number must be provided');
         }
-        $result = $this->api->post('transaction/' . rawurlencode($transactionNumber) . '/cancel');
+        $result = $this->api->request('POST', 'transaction/' . rawurlencode($transactionNumber) . '/cancel');
         $transaction = new DetailedTransaction(ResponseParser::data($result));
         $transaction->setLinks(ResponseParser::links($result));
         return $transaction;
@@ -181,10 +183,41 @@ class TransactionService {
             ];
         }
 
-        $result = $this->api->post('transaction/' . rawurlencode($transactionNumber) . '/refund', $jsonBody);
+        $result = $this->api->request('POST', 'transaction/' . rawurlencode($transactionNumber) . '/refund', $jsonBody);
         $transaction = new DetailedTransaction(ResponseParser::data($result));
         $transaction->setLinks(ResponseParser::links($result));
 
         return $transaction;
+    }
+
+    /**
+     * Every event on the gateway's transactions, oldest first.
+     *
+     * Paged by cursor rather than page number: keep the cursor from the last
+     * page and pass it back to carry on. Originally implemented by Dennis
+     * Vaeversted in 2020 on a branch that was never merged upstream.
+     *
+     * @param string|null $cursor The cursor from a previous call, or null to start
+     * @throws Exception\ApiException
+     * @throws Exception\ConnectionException
+     * @throws Exception\TokenException
+     */
+    public function getEvents(?string $cursor = null): TransactionEventCollection {
+        $url = 'transaction/events/';
+        if (null !== $cursor && '' !== $cursor) {
+            $url .= '?' . http_build_query(['cursor' => $cursor]);
+        }
+
+        $result = $this->api->request('GET', $url);
+
+        $collection = new TransactionEventCollection();
+        foreach (ResponseParser::collection($result) as $item) {
+            $collection->events[] = new TransactionEvent($item);
+        }
+
+        $nextCursor = is_array($result) ? ($result['meta']['next_cursor'] ?? null) : null;
+        $collection->nextCursor = (is_string($nextCursor) && '' !== $nextCursor) ? $nextCursor : null;
+
+        return $collection;
     }
 }

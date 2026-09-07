@@ -39,14 +39,17 @@ class ApiClient implements ApiClientInterface, LoggerAwareInterface
         $this->logger = $logger;
     }
 
-    public function get(string $url): mixed
+    public function request(string $method, string $url, mixed $body = null): mixed
     {
-        return $this->send('GET', $url);
-    }
+        // A GET carries no body; everything else does, even when that body is
+        // null. OnPay has accepted a literal null from the cancel and capture
+        // calls for years, and this is not the change to find out whether it
+        // still would if the body vanished entirely.
+        $encoded = 'GET' === strtoupper($method)
+            ? null
+            : json_encode($body, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
-    public function post(string $url, mixed $body = null): mixed
-    {
-        return $this->send('POST', $url, json_encode($body, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        return $this->send($method, $url, $encoded);
     }
 
     public function getPlatform(): string

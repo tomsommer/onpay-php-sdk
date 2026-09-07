@@ -185,7 +185,7 @@ class OnPayApiTest extends TestCase {
         $api = $this->api([], new Response(200, ['content-type' => 'application/json'], '{"ok":true}'), $captured);
 
         $this->assertInstanceOf(ApiClientInterface::class, $api->getApiClient());
-        $this->assertSame(['ok' => true], $api->getApiClient()->get('some/new/endpoint'));
+        $this->assertSame(['ok' => true], $api->getApiClient()->request('GET', 'some/new/endpoint'));
         $this->assertSame('https://api.onpay.io/v1/some/new/endpoint', (string) $captured->getUri());
     }
 }

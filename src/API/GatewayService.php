@@ -8,6 +8,7 @@ namespace OnPay\API;
 use OnPay\API\Gateway\Information;
 use OnPay\API\Gateway\PaymentWindowDesignCollection;
 use OnPay\API\Gateway\PaymentWindowIntegrationSettings;
+use OnPay\API\Gateway\PaymentWindowLanguage;
 use OnPay\API\Gateway\SimplePaymentWindowDesign;
 use OnPay\Http\ApiClientInterface;
 use OnPay\API\Util\ResponseParser;
@@ -32,7 +33,7 @@ class GatewayService
      * @throws Exception\ConnectionException
      */
     public function getInformation() {
-        $result = $this->api->get('gateway/information');
+        $result = $this->api->request('GET', 'gateway/information');
 
         $information = new Information(ResponseParser::data($result));
         return $information;
@@ -44,7 +45,7 @@ class GatewayService
      * @throws Exception\ConnectionException
      */
     public function getPaymentWindowIntegrationSettings() {
-        $result = $this->api->get('gateway/window/v3/integration');
+        $result = $this->api->request('GET', 'gateway/window/v3/integration');
 
         $settings = new PaymentWindowIntegrationSettings(ResponseParser::data($result));
         return $settings;
@@ -56,7 +57,7 @@ class GatewayService
      * @throws Exception\ConnectionException
      */
     public function getPaymentWindowDesigns() {
-        $results = $this->api->get('gateway/window/v3/design/');
+        $results = $this->api->request('GET', 'gateway/window/v3/design/');
 
         $designs = [];
         foreach (ResponseParser::collection($results) as $result) {
@@ -69,4 +70,20 @@ class GatewayService
         return $collection;
     }
 
+    /**
+     * The locales the payment window can be presented in.
+     *
+     * @return PaymentWindowLanguage[]
+     * @throws Exception\ApiException
+     * @throws Exception\ConnectionException
+     * @throws Exception\TokenException
+     */
+    public function getPaymentWindowLanguages(): array {
+        $results = $this->api->request('GET', 'gateway/window/v3/language/');
+
+        return array_map(
+            static fn (array $item): PaymentWindowLanguage => new PaymentWindowLanguage($item),
+            ResponseParser::collection($results)
+        );
+    }
 }

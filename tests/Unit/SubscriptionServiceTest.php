@@ -40,8 +40,8 @@ class SubscriptionServiceTest extends TestCase {
             'links' => ['self' => "/subscription/$uuid"]
         ];
 
-        $this->apiMock->method('get')
-            ->with("subscription/$uuid")
+        $this->apiMock->method('request')
+            ->with('GET', "subscription/$uuid")
             ->willReturn($mockResult);
 
         $result = $this->service->getSubscription($uuid);
@@ -57,8 +57,8 @@ class SubscriptionServiceTest extends TestCase {
             'links' => ['self' => "/subscription/$uuid"]
         ];
 
-        $this->apiMock->method('post')
-            ->with("subscription/$uuid/cancel")
+        $this->apiMock->method('request')
+            ->with('POST', "subscription/$uuid/cancel")
             ->willReturn($mockResult);
 
         $result = $this->service->cancelSubscription($uuid);
@@ -74,8 +74,8 @@ class SubscriptionServiceTest extends TestCase {
             'links' => ['self' => "/transaction/$uuid"]
         ];
 
-        $this->apiMock->method('post')
-            ->with("subscription/$uuid/authorize", $this->anything())
+        $this->apiMock->method('request')
+            ->with('POST', "subscription/$uuid/authorize", $this->anything())
             ->willReturn($mockResult);
 
         $result = $this->service->createTransactionFromSubscription(

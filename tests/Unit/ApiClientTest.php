@@ -63,7 +63,7 @@ class ApiClientTest extends TestCase {
     public function testGetSendsBearerTokenAndDecodesJson(): void {
         $client = $this->client(new Response(200, ['content-type' => 'application/json'], '{"ping":"pong"}'), $captured);
 
-        $this->assertSame(['ping' => 'pong'], $client->get('ping'));
+        $this->assertSame(['ping' => 'pong'], $client->request('GET', 'ping'));
         $this->assertSame('GET', $captured->getMethod());
         $this->assertSame(self::BASE_URI . '/v1/ping', (string) $captured->getUri());
         $this->assertSame('Bearer static_token', $captured->getHeaderLine('Authorization'));
@@ -72,7 +72,7 @@ class ApiClientTest extends TestCase {
 
     public function testGetSendsNoContentTypeWithoutABody(): void {
         $client = $this->client(new Response(200, ['content-type' => 'application/json'], '{}'), $captured);
-        $client->get('ping');
+        $client->request('GET', 'ping');
 
         $this->assertSame('', $captured->getHeaderLine('Content-Type'));
     }
@@ -80,7 +80,7 @@ class ApiClientTest extends TestCase {
     public function testPostSendsJsonBody(): void {
         $client = $this->client(new Response(200, ['content-type' => 'application/json'], '{"ok":true}'), $captured);
 
-        $this->assertSame(['ok' => true], $client->post('transactions', ['amount' => 100]));
+        $this->assertSame(['ok' => true], $client->request('POST', 'transactions', ['amount' => 100]));
         $this->assertSame('POST', $captured->getMethod());
         $this->assertSame('application/json', $captured->getHeaderLine('Content-Type'));
         $this->assertSame('{"amount":100}', (string) $captured->getBody());
@@ -88,13 +88,13 @@ class ApiClientTest extends TestCase {
 
     public function testPostDoesNotEscapeSlashes(): void {
         $client = $this->client(new Response(200, ['content-type' => 'application/json'], '{}'), $captured);
-        $client->post('transactions', ['url' => 'https://example.test/path']);
+        $client->request('POST', 'transactions', ['url' => 'https://example.test/path']);
 
         $this->assertStringContainsString('https://example.test/path', (string) $captured->getBody());
     }
 
     public function testEmptyBodyDecodesToNull(): void {
-        $this->assertNull($this->client(new Response(204, [], ''))->get('transactions'));
+        $this->assertNull($this->client(new Response(204, [], ''))->request('GET', 'transactions'));
     }
 
     public function testApiErrorMessageIsExtractedFromJsonBody(): void {
@@ -104,7 +104,7 @@ class ApiClientTest extends TestCase {
 
         $this->expectException(ApiException::class);
         $this->expectExceptionMessage('Bad amount');
-        $client->get('transactions');
+        $client->request('GET', 'transactions');
     }
 
     public function testNotFoundYieldsApiException(): void {
@@ -112,7 +112,7 @@ class ApiClientTest extends TestCase {
 
         $this->expectException(ApiException::class);
         $this->expectExceptionMessage('Not found');
-        $client->get('transactions');
+        $client->request('GET', 'transactions');
     }
 
     #[DataProvider('tokenErrorStatusProvider')]
@@ -120,7 +120,7 @@ class ApiClientTest extends TestCase {
         $client = $this->client(new Response($status, [], ''));
 
         $this->expectException(TokenException::class);
-        $client->get('transactions');
+        $client->request('GET', 'transactions');
     }
 
     /** @return array<string, int[]> */
@@ -133,7 +133,7 @@ class ApiClientTest extends TestCase {
 
         $this->expectException(ApiException::class);
         $this->expectExceptionMessage('Failed to decode JSON body-response');
-        $client->get('transactions');
+        $client->request('GET', 'transactions');
     }
 
     /**
@@ -144,7 +144,7 @@ class ApiClientTest extends TestCase {
         $client = $this->client(new Response(502, ['content-type' => 'text/html'], '<html>gateway</html>'));
 
         try {
-            $client->get('transactions');
+            $client->request('GET', 'transactions');
             $this->fail('Expected an ApiException');
         } catch (ApiException $e) {
             $this->assertSame(502, $e->getCode());
@@ -160,7 +160,7 @@ class ApiClientTest extends TestCase {
 
         $this->expectException(ConnectionException::class);
         $this->expectExceptionMessage('connection refused');
-        $this->clientWith($httpClient)->get('transactions');
+        $this->clientWith($httpClient)->request('GET', 'transactions');
     }
 
     /** @throws Exception */
@@ -182,7 +182,7 @@ class ApiClientTest extends TestCase {
         $client->setLogger($logger);
 
         $this->expectException(ApiException::class);
-        $client->get('transactions');
+        $client->request('GET', 'transactions');
     }
 
     /** @throws Exception */
@@ -192,7 +192,7 @@ class ApiClientTest extends TestCase {
 
         $client = $this->client(new Response(200, ['content-type' => 'application/json'], '{}'));
         $client->setLogger($logger);
-        $client->get('ping');
+        $client->request('GET', 'ping');
     }
 
     public function testGetPlatformReturnsTheConfiguredValue(): void {

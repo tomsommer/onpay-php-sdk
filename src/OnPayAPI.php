@@ -9,6 +9,7 @@ use Http\Discovery\Psr18ClientDiscovery;
 use OnPay\API\Exception\ApiException;
 use OnPay\API\Exception\ConnectionException;
 use OnPay\API\Exception\TokenException;
+use OnPay\API\AcquirerService;
 use OnPay\API\GatewayService;
 use OnPay\API\PaymentService;
 use OnPay\API\SubscriptionService;
@@ -31,7 +32,7 @@ use TomSommer\OAuth2\Client\Provider\OnPay as OnPayProvider;
  * service objects for each part of the API.
  */
 class OnPayAPI implements LoggerAwareInterface {
-    const SDK_VERSION = '3.4.0';
+    const SDK_VERSION = '4.0.0';
 
     protected string $scope = 'full';
 
@@ -48,6 +49,8 @@ class OnPayAPI implements LoggerAwareInterface {
     protected ?PaymentService $paymentService = null;
 
     protected ?GatewayService $gatewayService = null;
+
+    protected ?AcquirerService $acquirerService = null;
 
     /**
      * The optional PSR-18 $httpClient (with PSR-17 $requestFactory and $streamFactory)
@@ -208,7 +211,7 @@ class OnPayAPI implements LoggerAwareInterface {
      * @throws ConnectionException
      */
     public function ping(): mixed {
-        return $this->apiClient->get('ping');
+        return $this->apiClient->request('GET', 'ping');
     }
 
     public function transaction(): TransactionService {
@@ -237,6 +240,16 @@ class OnPayAPI implements LoggerAwareInterface {
             $this->gatewayService = new GatewayService($this->apiClient);
         }
         return $this->gatewayService;
+    }
+
+    /**
+     * Acquirers, providers and wallets configured on the gateway.
+     */
+    public function acquirer(): AcquirerService {
+        if (null === $this->acquirerService) {
+            $this->acquirerService = new AcquirerService($this->apiClient);
+        }
+        return $this->acquirerService;
     }
 
     /**
