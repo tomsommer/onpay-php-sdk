@@ -22,6 +22,27 @@ class PaymentWindowTest extends TestCase {
         return $window;
     }
 
+    /**
+     * OnPay documents onpay_website as required, so a window without it would be
+     * turned away at the redirect. isValid() has to say so first.
+     *
+     * @see https://onpay.io/docs/technical/paymentwindow_v3.html
+     */
+    public function testWindowWithoutWebsiteIsInvalid(): void {
+        $window = new PaymentWindow();
+        $window->setSecret(self::SECRET);
+        $window->setGatewayId('A5KM3QX7B');
+        $window->setCurrency('DKK');
+        $window->setAmount('39999');
+        $window->setReference('order-1');
+        $window->setAcceptUrl('https://example.test/ok');
+
+        $this->assertFalse($window->isValid());
+
+        $window->setWebsite('https://example.test/');
+        $this->assertTrue($window->isValid());
+    }
+
     public function testFormFieldsValidateAgainstThemselves(): void {
         $fields = $this->window()->getFormFields();
 

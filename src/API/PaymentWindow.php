@@ -98,6 +98,7 @@ class PaymentWindow
             "currency",
             "reference",
             "acceptUrl",
+            "website",
         ];
 
         $this->platform = self::SDK_VERSION_STRING;

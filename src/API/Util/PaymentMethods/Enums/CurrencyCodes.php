@@ -10,6 +10,7 @@ final class CurrencyCodes {
     const CNY = 'CNY';
     const CZK = 'CZK';
     const DKK = 'DKK';
+    const HUF = 'HUF';
     const ISK = 'ISK';
     const INR = 'INR';
     const JPY = 'JPY';
@@ -24,6 +25,8 @@ final class CurrencyCodes {
     const EGP = 'EGP';
     const GBP = 'GBP';
     const USD = 'USD';
+    const RON = 'RON';
+    const TRY = 'TRY';
     const EUR = 'EUR';
     const UAH = 'UAH';
     const PLN = 'PLN';
