@@ -50,52 +50,25 @@ fork replaces both:
 
 ### Upgrading from onpayio/php-sdk 1.x
 
-`OnPay\OnPayAPI`, `OnPay\StaticToken`, `OnPay\TokenStorageInterface`, everything under
-`OnPay\API\*` and the constructor signature `new OnPayAPI($tokenStorage, $options)` are
-unchanged, so for most integrations only the Composer package name changes.
+`OnPay\OnPayAPI`, `OnPay\StaticToken`, everything under `OnPay\API\*` and the constructor
+signature `new OnPayAPI($tokenStorage, $options)` are unchanged, so for most integrations only
+the Composer package name changes.
 
-Breaking changes:
+Tokens written by 1.x are still read, so existing installations keep working without
+re-authorizing.
 
-- The `OnPay\OAuth\Client\*`, `OnPay\InternalTokenStorage`, `OnPay\Session` and
-  `OnPay\CurlHttpClientLogger` classes were removed. Nothing in the public API referenced them.
-- `OnPay\API\Http\Request` and `OnPay\API\Http\Response` were removed too. They existed
-  only to carry the last request and response, which are now the PSR-7 messages themselves:
-  `getLastHttpRequest()` returns a `Psr\Http\Message\RequestInterface` and
-  `getLastHttpResponse()` a `ResponseInterface`, with the body stream rewound. Callers get the
-  real headers and status instead of a partial copy; `getUri()` now returns a `UriInterface`,
-  so cast it to string.
-- `TokenStorageInterface` now declares `getToken(): ?string` and `saveToken(string $token): void`.
-  Add the types to your own implementation.
-- `OnPayAPI::get()` and `post()` are gone. They were marked `@internal` but had to be public
-  for the service classes to reach them, which left the typed service layer bypassable. Use
-  the service objects, or `getApiClient()` for an endpoint they do not cover yet.
-- `OnPayAPI::getLastHttpRequest()` and `getLastHttpResponse()` are gone. They made the client
-  carry per-request state for debugging only; use a PSR-3 logger, or middleware on the PSR-18
-  client you inject.
-- `OnPayAPI::setHttpClient()` is gone. Pass the client to the constructor.
-- The service classes take `OnPay\Http\ApiClientInterface` instead of `OnPayAPI`. Construct
-  them through `$api->transaction()`, `$api->subscription()`, `$api->payment()` and
-  `$api->gateway()` rather than directly.
-- `OnPay\OnPayProvider` moved out to `TomSommer\OAuth2\Client\Provider\OnPay` in the
-  `tomsommer/oauth2-onpay` package, which the SDK now requires. `getProvider()` returns it.
-  An invalid `gateway_id` now reports `gatewayId must be a non-empty alphanumeric value`.
-- `PaymentService::createNewPayment()` takes a typed `PaymentWindow`. Passing anything else
-  raised `InvalidFormatException` before and now raises a `TypeError`.
-- `PaymentWindow::setSecret()` is typed `?string`, and `getSecret()` returns `?string`.
-- `PaymentWindow::getFormFields()`, `generateSecret()` and `validatePayment()` throw
-  `OnPay\API\Exception\MissingDataException` when no window secret has been set, rather
-  than hashing with an empty key and returning a signature that can never match.
-- The SDK no longer sets a cURL timeout of its own, because it no longer owns the transport.
-  Configure the timeout on the HTTP client you inject.
-- Stored tokens are written in `league/oauth2-client` format. Tokens written by 1.x are still
-  read, so existing installations keep working without re-authorizing.
-- A PSR-18 client and PSR-17 factories must be installable. `composer require` pulls in
-  `php-http/discovery`, which finds any client you already have; install one (for example
-  `symfony/http-client` with `nyholm/psr7`, or `guzzlehttp/guzzle`) if you have none.
+What changed in each version, and what to do about it, is in the
+[release notes](https://github.com/tomsommer/onpay-php-sdk/releases).
 
 ## Requirements
 
-PHP 8.2 and later, plus a PSR-18 HTTP client.
+PHP 8.2 and later, plus a PSR-18 HTTP client. `composer require` pulls in
+[`php-http/discovery`](https://docs.php-http.org/en/latest/discovery.html), which finds any
+client already installed; if you have none, add one (for example `symfony/http-client` with
+`nyholm/psr7`, or `guzzlehttp/guzzle`).
+
+The SDK sets no timeout of its own, because it does not own the transport. Configure that on
+the client you inject.
 
 ## Composer
 
