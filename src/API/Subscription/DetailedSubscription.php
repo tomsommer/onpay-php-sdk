@@ -26,12 +26,12 @@ class DetailedSubscription extends SimpleSubscription
         $this->ipCountry = isset($data['ip_country']) ? $data['ip_country'] : null;
         $this->fee = isset($data['fee']) ? $data['fee'] : null;
 
-        foreach ($data['history'] as $history) {
+        foreach ($data['history'] ?? [] as $history) {
             $historyItem = new SubscriptionHistory($history);
             $this->history[] = $historyItem;
         }
 
-        foreach ($data['transactions'] as $transaction) {
+        foreach ($data['transactions'] ?? [] as $transaction) {
             $transactionItem = new SimpleTransaction($transaction);
             $this->transactions[] = $transactionItem;
         }

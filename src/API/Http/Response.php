@@ -4,7 +4,7 @@ namespace OnPay\API\Http;
 
 class Response {
     /**
-     * @var string $statusCode
+     * @var int $statusCode
      */
     protected $statusCode;
 
@@ -14,14 +14,14 @@ class Response {
     protected $body;
 
     /**
-     * @return string
+     * @return int
      */
     public function getStatusCode() {
         return $this->statusCode;
     }
 
     /**
-     * @param string $statusCode
+     * @param int $statusCode
      */
     public function setStatusCode($statusCode) {
         $this->statusCode = $statusCode;

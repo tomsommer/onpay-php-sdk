@@ -1,22 +1,67 @@
-# OnPay.io PHP SDK
+# OnPay.io PHP SDK (modernized fork)
 
-[![Latest Stable Version](https://poser.pugx.org/onpayio/php-sdk/v/stable)](https://packagist.org/packages/onpayio/php-sdk)
-[![Total Downloads](https://poser.pugx.org/onpayio/php-sdk/downloads)](https://packagist.org/packages/onpayio/php-sdk)
-[![License](https://poser.pugx.org/onpayio/php-sdk/license)](https://packagist.org/packages/onpayio/php-sdk)
+[![Tests](https://github.com/tomsommer/onpay-php-sdk/actions/workflows/tests.yml/badge.svg)](https://github.com/tomsommer/onpay-php-sdk/actions/workflows/tests.yml)
+[![Latest Stable Version](https://poser.pugx.org/tomsommer/onpay-php-sdk/v/stable)](https://packagist.org/packages/tomsommer/onpay-php-sdk)
+[![License](https://poser.pugx.org/tomsommer/onpay-php-sdk/license)](https://packagist.org/packages/tomsommer/onpay-php-sdk)
 
-A PHP-SDK for developing against the OnPay.io platform.
-API documentation at: https://manage.onpay.io/docs/api_v1.html 
+A modernized PHP SDK for developing against the OnPay.io platform, forked from
+[onpayio/php-sdk](https://github.com/onpayio/php-sdk).
+
+API documentation at: https://manage.onpay.io/docs/api_v1.html
+
+## What is different in this fork
+
+The upstream SDK bundled a copy of `fkooman/oauth2-client` (a PHP 5.4-era library whose
+own README recommends using something else) and hard-wired every HTTP call to cURL. This
+fork replaces both:
+
+- **OAuth 2.0 is handled by [`league/oauth2-client`](https://oauth2-client.thephpleague.com/).**
+  The vendored `OnPay\OAuth\Client\*` tree is gone. Authorization, code exchange and token
+  refresh go through a real, maintained library, and the provider is exposed via
+  `getProvider()` so you can drive the flow yourself.
+- **HTTP goes through any [PSR-18](https://www.php-fig.org/psr/psr-18/) client.** Pass your
+  own client and [PSR-17](https://www.php-fig.org/psr/psr-17/) factories, or let them be
+  auto-discovered. Symfony HttpClient, Guzzle and Buzz all work.
+- **Failures are reported to a [PSR-3](https://www.php-fig.org/psr/psr-3/) logger**
+  instead of `error_log()`. `OnPayAPI` implements `LoggerAwareInterface`.
+- **PKCE is opt-in and actually works.** Upstream generated a code challenge and then sent
+  an empty verifier. Set the `pkce_method` option and carry the verifier across the redirect
+  with `getPkceCode()` / `setPkceCode()`.
+- **Malformed JSON and transport errors raise typed exceptions** rather than yielding `null`.
+- **PHP 8.2+, native types on the core classes, and a CI suite** running PHPUnit on
+  PHP 8.2/8.3/8.4 plus PHPStan.
+
+### Upgrading from onpayio/php-sdk 1.x
+
+`OnPay\OnPayAPI`, `OnPay\StaticToken`, `OnPay\TokenStorageInterface`, everything under
+`OnPay\API\*` and the constructor signature `new OnPayAPI($tokenStorage, $options)` are
+unchanged, so for most integrations only the Composer package name changes.
+
+Breaking changes:
+
+- The `OnPay\OAuth\Client\*`, `OnPay\InternalTokenStorage`, `OnPay\Session` and
+  `OnPay\CurlHttpClientLogger` classes were removed. Nothing in the public API referenced them.
+- `TokenStorageInterface` now declares `getToken(): ?string` and `saveToken(string $token): void`.
+  Add the types to your own implementation.
+- Stored tokens are written in `league/oauth2-client` format. Tokens written by 1.x are still
+  read, so existing installations keep working without re-authorizing.
+- A PSR-18 client and PSR-17 factories must be installable. `composer require` pulls in
+  `php-http/discovery`, which finds any client you already have; install one (for example
+  `symfony/http-client` with `nyholm/psr7`, or `guzzlehttp/guzzle`) if you have none.
 
 ## Requirements
 
-PHP 7.4 and later.
+PHP 8.2 and later, plus a PSR-18 HTTP client.
 
 ## Composer
 
 You can install the SDK via [Composer](https://getcomposer.org/). Run the following command:
 ```bash
-composer require onpayio/php-sdk
+composer require tomsommer/onpay-php-sdk
 ```
+
+The package `replace`s `onpayio/php-sdk`, so it can be dropped into a project that depends
+on the upstream SDK without a conflict.
 
 ## Getting started
 
@@ -160,6 +205,61 @@ if (!$onPayAPI->isAuthorized()) {
 // Execute API method
 var_dump($onPayAPI->ping());
 
+```
+
+### Choosing an HTTP client
+
+By default the client and factories are discovered from what is installed:
+
+```php
+$onPayAPI = new \OnPay\OnPayAPI($tokenStorage, ['client_id' => 'example.com']);
+```
+
+To be explicit, or to reuse a configured client with your own timeouts, proxy and retries,
+pass a PSR-18 client and PSR-17 factories:
+
+```php
+$psr18 = new \Symfony\Component\HttpClient\Psr18Client();
+
+$onPayAPI = new \OnPay\OnPayAPI(
+    $tokenStorage,
+    ['client_id' => 'example.com'],
+    $psr18,
+    $psr18, // PSR-17 RequestFactoryInterface
+    $psr18, // PSR-17 StreamFactoryInterface
+);
+```
+
+All parameters are typed, so a DI container can autowire them. It can also be replaced later
+with `setHttpClient()`.
+
+### Logging
+
+```php
+$onPayAPI->setLogger($logger); // any PSR-3 LoggerInterface
+```
+
+Non-2xx responses are logged at warning level with the request method, URI, status and body.
+Without a logger the SDK falls back to `error_log()`, so failures are never dropped silently.
+
+### PKCE
+
+PKCE requires the code verifier to survive the redirect, which the SDK cannot do for you:
+
+```php
+$onPayAPI = new \OnPay\OnPayAPI($tokenStorage, [
+    'client_id' => 'example.com',
+    'redirect_uri' => 'https://example.com/onpay/callback',
+    'pkce_method' => \League\OAuth2\Client\Provider\AbstractProvider::PKCE_METHOD_S256,
+]);
+
+// Before redirecting, store the verifier next to the OAuth state.
+$authUrl = $onPayAPI->authorize();
+$_SESSION['onpay_pkce'] = $onPayAPI->getPkceCode();
+
+// On the callback, restore it before exchanging the code.
+$onPayAPI->setPkceCode($_SESSION['onpay_pkce']);
+$onPayAPI->finishAuthorize($_GET['code']);
 ```
 
 ## Payments

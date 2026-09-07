@@ -29,7 +29,7 @@ class DetailedTransaction extends SimpleTransaction {
             $this->cardholderData = new CardholderData($data['cardholder_data']);
         }
 
-        foreach ($data['history'] as $history) {
+        foreach ($data['history'] ?? [] as $history) {
             $historyItem = new TransactionHistory($history);
             $this->history[] = $historyItem;
         }

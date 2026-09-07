@@ -1,0 +1,55 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Instanceof between OnPay\\API\\PaymentWindow and OnPay\\API\\PaymentWindow will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/API/PaymentService.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between null and string will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: src/API/PaymentService.php
+
+		-
+			message: '#^Property OnPay\\API\\PaymentWindow\:\:\$info \(OnPay\\API\\PaymentWindow\\PaymentInfo\) in isset\(\) is not nullable\.$#'
+			identifier: isset.property
+			count: 1
+			path: src/API/PaymentWindow.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between null and null will always evaluate to false\.$#'
+			identifier: notIdentical.alwaysFalse
+			count: 2
+			path: src/API/PaymentWindow.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between null and null will always evaluate to true\.$#'
+			identifier: identical.alwaysTrue
+			count: 1
+			path: src/API/PaymentWindow.php
+
+		-
+			message: '#^Property OnPay\\API\\PaymentWindow\\CartHandling\:\:\$name \(string\|null\) does not accept int\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: src/API/PaymentWindow/Cart.php
+
+		-
+			message: '#^Property OnPay\\API\\PaymentWindow\\CartShipping\:\:\$name \(string\|null\) does not accept int\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: src/API/PaymentWindow/Cart.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between null and mixed will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: src/API/Transaction/DetailedTransaction.php
+
+		-
+			message: '#^Method OnPay\\API\\Util\\PaymentMethods\\PaymentMethods\:\:populatePaymentMethods\(\) has OnPay\\API\\Exception\\ApiException in PHPDoc @throws tag but it''s not thrown\.$#'
+			identifier: throws.unusedType
+			count: 1
+			path: src/API/Util/PaymentMethods/PaymentMethods.php

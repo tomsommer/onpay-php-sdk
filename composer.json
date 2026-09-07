@@ -1,20 +1,51 @@
 {
-    "name": "onpayio/php-sdk",
+    "name": "tomsommer/onpay-php-sdk",
     "type": "library",
-    "description": "PHP SDK for OnPay.io API",
-    "homepage": "https://github.com/onpayio/php-sdk",
+    "description": "Modernized PHP SDK for the OnPay.io API",
+    "keywords": ["onpay", "payment", "sdk", "psr-18", "oauth2"],
+    "homepage": "https://github.com/tomsommer/onpay-php-sdk",
     "license": "MIT",
+    "support": {
+        "issues": "https://github.com/tomsommer/onpay-php-sdk/issues",
+        "source": "https://github.com/tomsommer/onpay-php-sdk"
+    },
     "autoload": {
         "psr-4": {
             "OnPay\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "replace": {
+        "onpayio/php-sdk": "*"
+    },
     "require": {
-        "php": ">=7.4",
+        "php": ">=8.2",
         "ext-json": "*",
+        "league/oauth2-client": "^2.8",
+        "php-http/discovery": "^1.19",
+        "psr/http-client": "^1.0",
+        "psr/http-factory": "^1.0",
+        "psr/http-message": "^1.0 || ^2.0",
         "psr/log": "^1.1 || ^2.0 || ^3.0"
     },
     "require-dev": {
+        "guzzlehttp/guzzle": "^7.5",
+        "nyholm/psr7": "^1.8",
+        "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^11.4"
+    },
+    "scripts": {
+        "test": "phpunit",
+        "phpstan": "phpstan analyse"
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true
+        },
+        "sort-packages": true
     }
 }
