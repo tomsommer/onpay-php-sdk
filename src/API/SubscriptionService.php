@@ -11,7 +11,7 @@ use OnPay\API\Subscription\SubscriptionCollection;
 use OnPay\API\Transaction\DetailedTransaction;
 use OnPay\API\Exception\ApiException;
 use OnPay\API\Util\Pagination;
-use OnPay\OnPayAPI;
+use OnPay\Http\ApiClientInterface;
 
 class SubscriptionService
 {
@@ -20,9 +20,9 @@ class SubscriptionService
     /**
      * @internal Should never be called outside library
      * SubscriptionService constructor.
-     * @param OnPayAPI $api
+     * @param ApiClientInterface $api
      */
-    public function __construct(OnPayAPI $api)
+    public function __construct(ApiClientInterface $api)
     {
         $this->api = $api;
     }

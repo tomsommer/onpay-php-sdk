@@ -6,10 +6,6 @@ namespace OnPay;
 
 use Http\Discovery\Psr17FactoryDiscovery;
 use Http\Discovery\Psr18ClientDiscovery;
-use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
-use League\OAuth2\Client\Token\AccessToken;
-use League\OAuth2\Client\Token\AccessTokenInterface;
-use League\OAuth2\Client\Token\SettableRefreshTokenInterface;
 use OnPay\API\Exception\ApiException;
 use OnPay\API\Exception\ConnectionException;
 use OnPay\API\Exception\TokenException;
@@ -17,27 +13,33 @@ use OnPay\API\GatewayService;
 use OnPay\API\PaymentService;
 use OnPay\API\SubscriptionService;
 use OnPay\API\TransactionService;
-use Psr\Http\Client\ClientExceptionInterface;
+use OnPay\Auth\TokenManager;
+use OnPay\Http\ApiClient;
+use OnPay\Http\ApiClientInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
-use Psr\Http\Message\RequestInterface;
-use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Log\LoggerAwareInterface;
-use Psr\Log\LoggerAwareTrait;
 use Psr\Log\LoggerInterface;
-use Tomsommer\OAuth2\Client\Provider\OnPay as OnPayProvider;
+use TomSommer\OAuth2\Client\Provider\OnPay as OnPayProvider;
 
+/**
+ * Entry point to the OnPay API.
+ *
+ * Turns the option array into the three collaborators that do the work - the
+ * OAuth provider, the token manager and the API client - and hands out the
+ * service objects for each part of the API.
+ */
 class OnPayAPI implements LoggerAwareInterface {
-    use LoggerAwareTrait;
+    const SDK_VERSION = '3.0.0';
 
-    const SDK_VERSION = '2.3.0';
-
-    protected TokenStorageInterface $tokenStorage;
-
-    protected array $options = [];
+    protected string $scope = 'full';
 
     protected OnPayProvider $oauth2Provider;
+
+    protected TokenManager $tokenManager;
+
+    protected ApiClient $apiClient;
 
     protected ?TransactionService $transactionService = null;
 
@@ -47,30 +49,13 @@ class OnPayAPI implements LoggerAwareInterface {
 
     protected ?GatewayService $gatewayService = null;
 
-    protected string $scope = 'full';
-
-    protected ?RequestInterface $request = null;
-
-    protected ?ResponseInterface $response = null;
-
-    protected ClientInterface $httpClient;
-
-    protected RequestFactoryInterface $requestFactory;
-
-    protected StreamFactoryInterface $streamFactory;
-
-    protected string $platform;
-
     /**
-     * OnPayAPI constructor.
-     *
      * The optional PSR-18 $httpClient (with PSR-17 $requestFactory and $streamFactory)
      * routes all API requests through any PSR-18 compatible HTTP client: Symfony
      * HttpClient, Guzzle, Buzz and so on. All parameters are typed so DI containers
      * can autowire registered services automatically. When they are omitted, the
      * client and factories are auto-discovered from the installed packages.
      *
-     * @param TokenStorageInterface $tokenStorage
      * @param array $options
      * @param ClientInterface|null $httpClient PSR-18 HTTP client
      * @param RequestFactoryInterface|null $requestFactory PSR-17 request factory
@@ -85,76 +70,51 @@ class OnPayAPI implements LoggerAwareInterface {
         ?StreamFactoryInterface $streamFactory = null,
         ?LoggerInterface $logger = null
     ) {
-        $this->tokenStorage = $tokenStorage;
+        $options = $this->resolveOptions($tokenStorage, $options);
 
-        $defaultOptions = [
-            'base_uri' => 'https://api.onpay.io',
-            'base_authorize_uri' => 'https://manage.onpay.io',
-        ];
-
-        $requiredOptions = $this->getRequiredOptions($tokenStorage);
-
-        $missing = array_diff_key(array_flip($requiredOptions), $options);
-        if (!empty($missing)) {
-            throw new \InvalidArgumentException(
-                'Required options not defined: ' . implode(', ', array_keys($missing))
-            );
-        }
-
-        $this->options = array_merge($defaultOptions, $options);
-
-        // Set redirect_uri to an empty value if none is sent
-        if (!array_key_exists('redirect_uri', $this->options)) {
-            $this->options['redirect_uri'] = '';
-        }
-
-        $this->httpClient = $httpClient ?? Psr18ClientDiscovery::find();
-        $this->requestFactory = $requestFactory ?? Psr17FactoryDiscovery::findRequestFactory();
-        $this->streamFactory = $streamFactory ?? Psr17FactoryDiscovery::findStreamFactory();
-        $this->logger = $logger;
+        $httpClient ??= Psr18ClientDiscovery::find();
+        $requestFactory ??= Psr17FactoryDiscovery::findRequestFactory();
+        $streamFactory ??= Psr17FactoryDiscovery::findStreamFactory();
 
         $this->oauth2Provider = new OnPayProvider(
             [
-                'clientId' => $this->options['client_id'],
-                'redirectUri' => $this->options['redirect_uri'],
-                'gatewayId' => isset($this->options['gateway_id'])
-                    ? (string) $this->options['gateway_id']
-                    : null,
-                'baseAuthorizeUri' => $this->options['base_authorize_uri'],
-                'baseUri' => $this->options['base_uri'],
+                'clientId' => $options['client_id'],
+                'redirectUri' => $options['redirect_uri'],
+                'gatewayId' => isset($options['gateway_id']) ? (string) $options['gateway_id'] : null,
+                'baseAuthorizeUri' => $options['base_authorize_uri'],
+                'baseUri' => $options['base_uri'],
                 'scopes' => [$this->scope],
-                'pkceMethod' => $this->options['pkce_method'] ?? null,
+                'pkceMethod' => $options['pkce_method'] ?? null,
             ],
-            $this->getProviderCollaborators()
+            $this->providerCollaborators($httpClient)
         );
 
-        if (array_key_exists('platform', $this->options)) {
-            $this->platform = $this->options['platform'];
-        } else {
-            $this->platform = 'php-sdk' . '/' . self::SDK_VERSION;
-        }
+        $this->tokenManager = new TokenManager($tokenStorage, $this->oauth2Provider);
+
+        $this->apiClient = new ApiClient(
+            $httpClient,
+            $requestFactory,
+            $streamFactory,
+            $this->tokenManager,
+            $options['base_uri'],
+            $options['platform'],
+            $logger,
+        );
     }
 
     /**
-     * Replaces the PSR-18 HTTP client used for API requests at runtime.
-     *
-     * @param ClientInterface $httpClient
-     * @param RequestFactoryInterface|null $requestFactory
-     * @param StreamFactoryInterface|null $streamFactory
-     * @return void
+     * The client used for API requests, for callers that need an endpoint the
+     * service classes do not cover yet.
      */
-    public function setHttpClient(
-        ClientInterface $httpClient,
-        ?RequestFactoryInterface $requestFactory = null,
-        ?StreamFactoryInterface $streamFactory = null
-    ): void {
-        $this->httpClient = $httpClient;
-        if (null !== $requestFactory) {
-            $this->requestFactory = $requestFactory;
-        }
-        if (null !== $streamFactory) {
-            $this->streamFactory = $streamFactory;
-        }
+    public function getApiClient(): ApiClientInterface {
+        return $this->apiClient;
+    }
+
+    /**
+     * Sets a PSR-3 logger that receives failed responses.
+     */
+    public function setLogger(LoggerInterface $logger): void {
+        $this->apiClient->setLogger($logger);
     }
 
     /**
@@ -184,8 +144,6 @@ class OnPayAPI implements LoggerAwareInterface {
     /**
      * Checks if we have a Token that looks valid.
      * If it looks valid, we'll attempt to ping the API.
-     *
-     * @return bool
      */
     public function isAuthorized(): bool {
         // If we're able to ping the API, we're authorized.
@@ -199,16 +157,13 @@ class OnPayAPI implements LoggerAwareInterface {
 
     /**
      * Returns the platform value set.
-     * @return string
      */
     public function getPlatform(): string {
-        return $this->platform;
+        return $this->apiClient->getPlatform();
     }
 
     /**
      * Returns a URL the user should be redirected to, for authorizing.
-     *
-     * @return string
      */
     public function authorize(): string {
         return $this->oauth2Provider->getAuthorizationUrl();
@@ -217,205 +172,81 @@ class OnPayAPI implements LoggerAwareInterface {
     /**
      * Exchanges an authorization code for an access token and stores it.
      *
-     * @param string $code
-     * @return void
      * @throws TokenException
      * @throws ConnectionException
      */
     public function finishAuthorize(string $code): void {
-        try {
-            $accessToken = $this->oauth2Provider->getAccessToken('authorization_code', [
-                'code' => $code,
-            ]);
-        } catch (IdentityProviderException $e) {
-            throw new TokenException($e->getMessage(), $e->getCode(), $e);
-        } catch (\UnexpectedValueException $e) {
-            throw new ConnectionException($e->getMessage(), $e->getCode(), $e);
-        }
-
-        $this->tokenStorage->saveToken(json_encode($accessToken));
+        $this->tokenManager->exchangeAuthorizationCode($code);
     }
 
     /**
      * Simple method that just checks if API requests can be made
      *
-     * @return mixed
      * @throws ApiException
      * @throws TokenException
      * @throws ConnectionException
      */
     public function ping(): mixed {
-        return $this->get('ping');
+        return $this->apiClient->get('ping');
+    }
+
+    public function transaction(): TransactionService {
+        if (null === $this->transactionService) {
+            $this->transactionService = new TransactionService($this->apiClient);
+        }
+        return $this->transactionService;
+    }
+
+    public function subscription(): SubscriptionService {
+        if (null === $this->subscriptionService) {
+            $this->subscriptionService = new SubscriptionService($this->apiClient);
+        }
+        return $this->subscriptionService;
+    }
+
+    public function payment(): PaymentService {
+        if (null === $this->paymentService) {
+            $this->paymentService = new PaymentService($this->apiClient);
+        }
+        return $this->paymentService;
+    }
+
+    public function gateway(): GatewayService {
+        if (null === $this->gatewayService) {
+            $this->gatewayService = new GatewayService($this->apiClient);
+        }
+        return $this->gatewayService;
     }
 
     /**
-     * @internal
-     * @param string $url
-     * @return mixed
-     * @throws ApiException
-     * @throws TokenException
-     * @throws ConnectionException
-     */
-    public function get(string $url): mixed {
-        return $this->send('GET', $url);
-    }
-
-    /**
-     * @internal
-     * @param string $url
-     * @param mixed $postBody
-     * @return mixed
-     * @throws ApiException
-     * @throws TokenException
-     * @throws ConnectionException
-     */
-    public function post(string $url, mixed $postBody = null): mixed {
-        return $this->send('POST', $url, json_encode($postBody, JSON_UNESCAPED_SLASHES));
-    }
-
-    /**
-     * @param string $method
-     * @param string $url
-     * @param string|null $body
-     * @return mixed
-     * @throws ApiException
-     * @throws TokenException
-     * @throws ConnectionException
-     */
-    private function send(string $method, string $url, ?string $body = null): mixed {
-        $accessToken = $this->getValidAccessToken();
-        $uri = $this->options['base_uri'] . '/v1/' . $url;
-
-        $headers = [
-            'User-Agent' => $this->platform,
-            'Authorization' => 'Bearer ' . $accessToken->getToken(),
-        ];
-        if (null !== $body) {
-            $headers['Content-Type'] = 'application/json';
-        }
-
-        $request = $this->requestFactory->createRequest($method, $uri);
-        foreach ($headers as $name => $value) {
-            $request = $request->withHeader($name, $value);
-        }
-        if (null !== $body) {
-            $request = $request->withBody($this->streamFactory->createStream($body));
-        }
-
-        $this->request = $request;
-        $this->response = null;
-
-        try {
-            $response = $this->httpClient->sendRequest($request);
-        } catch (ClientExceptionInterface $e) {
-            throw new ConnectionException($e->getMessage(), $e->getCode(), $e);
-        }
-
-        $statusCode = $response->getStatusCode();
-        $responseBody = (string) $response->getBody();
-        $this->response = $this->rewound($response);
-
-        return $this->handleResponse($statusCode, $responseBody, $response->getHeaderLine('content-type'));
-    }
-
-    /**
-     * Returns a usable access token, refreshing it first when it has expired.
+     * Applies defaults, rejects an incomplete option array, and normalises the
+     * values the rest of the constructor treats as always present.
      *
-     * @return AccessTokenInterface
-     * @throws TokenException
-     * @throws ConnectionException
+     * @param array $options
+     * @return array
      */
-    private function getValidAccessToken(): AccessTokenInterface {
-        $accessToken = $this->getAccessToken();
-        if (null === $accessToken) {
-            throw new TokenException('No access token stored. Possible invalid token.');
-        }
-
-        if (!$this->hasExpired($accessToken)) {
-            return $accessToken;
-        }
-
-        $refreshToken = $accessToken->getRefreshToken();
-        if (null === $refreshToken) {
-            throw new TokenException('Access token has expired and no refresh token is available.');
-        }
-
-        try {
-            $refreshed = $this->oauth2Provider->getAccessToken('refresh_token', [
-                'refresh_token' => $refreshToken,
-            ]);
-        } catch (IdentityProviderException $e) {
-            throw new TokenException($e->getMessage(), $e->getCode(), $e);
-        } catch (\UnexpectedValueException $e) {
-            throw new ConnectionException($e->getMessage(), $e->getCode(), $e);
-        }
-
-        // RFC 6749 section 6 lets the server leave refresh_token out of a refresh
-        // response, meaning the old one stays valid. Storing the response as-is
-        // would drop it and make the next expiry unrecoverable.
-        if (null === $refreshed->getRefreshToken() && $refreshed instanceof SettableRefreshTokenInterface) {
-            $refreshed->setRefreshToken($refreshToken);
-        }
-
-        $this->tokenStorage->saveToken(json_encode($refreshed));
-
-        return $refreshed;
-    }
-
-    /**
-     * Reads the stored token. Accepts both the league/oauth2-client format this
-     * SDK writes, and the legacy fkooman/oauth2-client format written by SDK
-     * versions 1.x, so stored tokens survive the upgrade.
-     *
-     * @return AccessTokenInterface|null
-     * @throws TokenException
-     */
-    private function getAccessToken(): ?AccessTokenInterface {
-        $json = $this->tokenStorage->getToken();
-
-        if (null === $json || '' === $json) {
-            return null;
-        }
-
-        $values = json_decode($json, true);
-        if (!is_array($values) || !isset($values['access_token'])) {
-            throw new TokenException('Stored token could not be read.');
-        }
-
-        // Legacy fkooman format carries issued_at + expires_in instead of expires.
-        if (isset($values['issued_at']) && isset($values['expires_in']) && !isset($values['expires'])) {
-            $issuedAt = strtotime($values['issued_at']);
-            if (false !== $issuedAt) {
-                $values['expires'] = $issuedAt + (int) $values['expires_in'];
-            }
-            unset($values['issued_at'], $values['expires_in'], $values['provider_id']);
-        }
-
-        return new AccessToken($values);
-    }
-
-    /**
-     * A token without an expiry (a static API token, for instance) never expires.
-     *
-     * @return bool
-     */
-    private function hasExpired(AccessTokenInterface $accessToken): bool {
-        return null !== $accessToken->getExpires() && $accessToken->hasExpired();
-    }
-
-    /**
-     * @param TokenStorageInterface $tokenStorage
-     * @return string[]
-     */
-    private function getRequiredOptions(TokenStorageInterface $tokenStorage): array {
-        $options = [
-            'client_id'
-        ];
-
+    private function resolveOptions(TokenStorageInterface $tokenStorage, array $options): array {
+        $required = ['client_id'];
         if (!$tokenStorage instanceof StaticToken) {
             // Redirect URI is not needed for static tokens
-            $options[] = 'redirect_uri';
+            $required[] = 'redirect_uri';
         }
+
+        $missing = array_diff_key(array_flip($required), $options);
+        if (!empty($missing)) {
+            throw new \InvalidArgumentException(
+                'Required options not defined: ' . implode(', ', array_keys($missing))
+            );
+        }
+
+        $options = array_merge([
+            'base_uri' => 'https://api.onpay.io',
+            'base_authorize_uri' => 'https://manage.onpay.io',
+        ], $options);
+
+        // Set redirect_uri to an empty value if none is sent
+        $options['redirect_uri'] ??= '';
+        $options['platform'] ??= 'php-sdk' . '/' . self::SDK_VERSION;
 
         return $options;
     }
@@ -427,162 +258,14 @@ class OnPayAPI implements LoggerAwareInterface {
      *
      * @return array
      */
-    private function getProviderCollaborators(): array {
+    private function providerCollaborators(ClientInterface $httpClient): array {
         if (
             interface_exists('GuzzleHttp\ClientInterface')
-            && $this->httpClient instanceof \GuzzleHttp\ClientInterface
+            && $httpClient instanceof \GuzzleHttp\ClientInterface
         ) {
-            return ['httpClient' => $this->httpClient];
+            return ['httpClient' => $httpClient];
         }
 
         return [];
-    }
-
-    /**
-     * @param int $statusCode
-     * @param string $body
-     * @param string $contentType
-     * @return mixed
-     * @throws ApiException
-     * @throws TokenException
-     */
-    private function handleResponse(int $statusCode, string $body, string $contentType): mixed {
-        if ($statusCode >= 200 && $statusCode < 300) {
-            return $this->decodeBody($body, $statusCode);
-        }
-
-        $message = '';
-        if ('' !== $body && false !== strpos($contentType, 'application/json')) {
-            $decoded = $this->decodeBody($body, $statusCode);
-            if (is_array($decoded) && isset($decoded['errors'][0]['message'])) {
-                $message = $decoded['errors'][0]['message'];
-            }
-        }
-
-        $this->logFailedResponse($statusCode, $body);
-
-        if (401 === $statusCode || 403 === $statusCode) {
-            throw new TokenException($message, $statusCode);
-        }
-        if (404 === $statusCode) {
-            $message = 'Not found';
-        }
-
-        throw new ApiException($message, $statusCode);
-    }
-
-    /**
-     * @param string $body
-     * @param int $statusCode
-     * @return mixed
-     * @throws ApiException
-     */
-    private function decodeBody(string $body, int $statusCode): mixed {
-        if ('' === $body) {
-            return null;
-        }
-
-        $decoded = json_decode($body, true);
-        if (JSON_ERROR_NONE !== json_last_error()) {
-            throw new ApiException('Failed to decode JSON body-response: ' . json_last_error_msg(), $statusCode);
-        }
-
-        return $decoded;
-    }
-
-    /**
-     * Reports a failed response to the PSR-3 logger when one is set, and falls
-     * back to error_log() so failures are never silently dropped.
-     *
-     * @param int $statusCode
-     * @param string $body
-     * @return void
-     */
-    private function logFailedResponse(int $statusCode, string $body): void {
-        if (null !== $this->logger) {
-            $this->logger->warning('OnPay HTTP request failed', [
-                'status' => $statusCode,
-                'method' => $this->request->getMethod(),
-                'uri' => (string) $this->request->getUri(),
-                'response' => $body,
-            ]);
-            return;
-        }
-
-        \error_log(sprintf(
-            'REQUEST=%s %s, RESPONSE=%d %s',
-            $this->request->getMethod(),
-            (string) $this->request->getUri(),
-            $statusCode,
-            $body
-        ));
-    }
-
-    /**
-     * @return TransactionService
-     */
-    public function transaction(): TransactionService {
-        if (null === $this->transactionService) {
-            $this->transactionService = new TransactionService($this);
-        }
-        return $this->transactionService;
-    }
-
-    /**
-     * @return SubscriptionService
-     */
-    public function subscription(): SubscriptionService {
-        if (null === $this->subscriptionService) {
-            $this->subscriptionService = new SubscriptionService($this);
-        }
-        return $this->subscriptionService;
-    }
-
-    /**
-     * @return PaymentService
-     */
-    public function payment(): PaymentService {
-        if (null === $this->paymentService) {
-            $this->paymentService = new PaymentService($this);
-        }
-        return $this->paymentService;
-    }
-
-    /**
-     * @return GatewayService
-     */
-    public function gateway(): GatewayService {
-        if (null === $this->gatewayService) {
-            $this->gatewayService = new GatewayService($this);
-        }
-        return $this->gatewayService;
-    }
-
-    /**
-     * The SDK reads the response body to decode it, which leaves the stream at
-     * its end. Rewind it so callers reading getLastHttpResponse() get the body
-     * rather than an empty string.
-     */
-    private function rewound(ResponseInterface $response): ResponseInterface {
-        $body = $response->getBody();
-        if ($body->isSeekable()) {
-            $body->rewind();
-        }
-
-        return $response;
-    }
-
-    /**
-     * Returns the last HTTP request sent to the API.
-     */
-    public function getLastHttpRequest(): ?RequestInterface {
-        return $this->request;
-    }
-
-    /**
-     * Returns the last HTTP response received from the API.
-     */
-    public function getLastHttpResponse(): ?ResponseInterface {
-        return $this->response;
     }
 }

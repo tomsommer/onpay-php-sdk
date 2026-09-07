@@ -40,6 +40,11 @@ fork replaces both:
   instead of hashing with an empty key.
 - **`declare(strict_types=1)` in every file**, so amounts and identifiers are not silently
   coerced on the way through.
+- **The core is three collaborators rather than one class.** `OnPayAPI` is a facade over
+  `OnPay\Auth\TokenManager` (reads, refreshes and stores the token) and
+  `OnPay\Http\ApiClient` (sends authenticated requests, maps answers to typed exceptions).
+  The service classes depend on `OnPay\Http\ApiClientInterface`, a two-verb seam that is
+  trivial to substitute in a test.
 - **PHP 8.2+, native types on the core classes, and a CI suite** running PHPUnit on
   PHP 8.2/8.3/8.4 plus PHPStan.
 
@@ -61,7 +66,17 @@ Breaking changes:
   so cast it to string.
 - `TokenStorageInterface` now declares `getToken(): ?string` and `saveToken(string $token): void`.
   Add the types to your own implementation.
-- `OnPay\OnPayProvider` moved out to `Tomsommer\OAuth2\Client\Provider\OnPay` in the
+- `OnPayAPI::get()` and `post()` are gone. They were marked `@internal` but had to be public
+  for the service classes to reach them, which left the typed service layer bypassable. Use
+  the service objects, or `getApiClient()` for an endpoint they do not cover yet.
+- `OnPayAPI::getLastHttpRequest()` and `getLastHttpResponse()` are gone. They made the client
+  carry per-request state for debugging only; use a PSR-3 logger, or middleware on the PSR-18
+  client you inject.
+- `OnPayAPI::setHttpClient()` is gone. Pass the client to the constructor.
+- The service classes take `OnPay\Http\ApiClientInterface` instead of `OnPayAPI`. Construct
+  them through `$api->transaction()`, `$api->subscription()`, `$api->payment()` and
+  `$api->gateway()` rather than directly.
+- `OnPay\OnPayProvider` moved out to `TomSommer\OAuth2\Client\Provider\OnPay` in the
   `tomsommer/oauth2-onpay` package, which the SDK now requires. `getProvider()` returns it.
   An invalid `gateway_id` now reports `gatewayId must be a non-empty alphanumeric value`.
 - `PaymentService::createNewPayment()` takes a typed `PaymentWindow`. Passing anything else
@@ -401,8 +416,7 @@ if($onPayAPI->isAuthorized()) {
     $paymentWindow->setCart($paymentCart);
     
     // Finally - submit the payment request via the api
-    $paymentService = new OnPay\API\PaymentService($onPayAPI);
-    $paymentResult = $paymentService->createNewPayment($paymentWindow);
+    $paymentResult = $onPayAPI->payment()->createNewPayment($paymentWindow);
 }
 
 ```

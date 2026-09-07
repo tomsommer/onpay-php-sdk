@@ -6,7 +6,7 @@ namespace OnPay\API;
 
 use OnPay\API\Exception\MissingDataException;
 use OnPay\API\Payment\SimplePayment;
-use OnPay\OnPayAPI;
+use OnPay\Http\ApiClientInterface;
 
 class PaymentService {
 
@@ -23,13 +23,13 @@ class PaymentService {
      */
     private $paymentWindow;
     /**
-     * @var OnPayAPI
+     * @var ApiClientInterface
      */
     private $api;
 
     const CREATE_PAYMENT_API = 'payment/create';
 
-    public function __construct(OnPayAPI $onPayAPI) {
+    public function __construct(ApiClientInterface $onPayAPI) {
         //Specifically required fields for the create payment endpoint
         $this->requiredFields = [
             "currency",

@@ -9,7 +9,7 @@ use OnPay\API\Gateway\Information;
 use OnPay\API\Gateway\PaymentWindowDesignCollection;
 use OnPay\API\Gateway\PaymentWindowIntegrationSettings;
 use OnPay\API\Gateway\SimplePaymentWindowDesign;
-use OnPay\OnPayAPI;
+use OnPay\Http\ApiClientInterface;
 
 class GatewayService
 {
@@ -19,9 +19,9 @@ class GatewayService
     /**
      * @internal Should never be called outside the library
      * TransactionService constructor.
-     * @param OnPayAPI $onPayAPI
+     * @param ApiClientInterface $onPayAPI
      */
-    public function __construct(OnPayAPI $onPayAPI) {
+    public function __construct(ApiClientInterface $onPayAPI) {
         $this->api = $onPayAPI;
     }
 
