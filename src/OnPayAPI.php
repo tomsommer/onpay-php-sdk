@@ -17,6 +17,7 @@ use OnPay\API\PaymentService;
 use OnPay\API\Http\Request as HttpRequest;
 use OnPay\API\Http\Response as HttpResponse;
 use OnPay\OAuth\Client\OAuthClient;
+use Psr\Log\LoggerInterface;
 
 class OnPayAPI {
     const SDK_VERSION = '1.0.39';
@@ -148,6 +149,17 @@ class OnPayAPI {
         } else {
             $this->platform = 'php-sdk' . '/' . self::SDK_VERSION;
         }
+    }
+
+    /**
+     * Sets a PSR-3 logger that will receive log entries for non-OK HTTP responses.
+     * When no logger is set, the SDK falls back to error_log() for backward compatibility.
+     *
+     * @param LoggerInterface $logger
+     * @return void
+     */
+    public function setLogger(LoggerInterface $logger) {
+        $this->httpClient->setLogger($logger);
     }
 
     /**
