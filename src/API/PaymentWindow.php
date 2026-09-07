@@ -1,6 +1,10 @@
 <?php
+
+declare(strict_types=1);
+
 namespace OnPay\API;
 
+use OnPay\API\Exception\MissingDataException;
 use OnPay\API\PaymentWindow\Cart;
 use OnPay\API\PaymentWindow\PaymentInfo;
 use OnPay\OnPayAPI;
@@ -41,7 +45,7 @@ class PaymentWindow
     private $callbackUrl;
     private $design;
     private $testMode;
-    private $secret;
+    private ?string $secret = null;
     private $delivery_disabled;
     private $subscription_with_transaction;
     private $website;
@@ -383,27 +387,40 @@ class PaymentWindow
         return $this->testMode;
     }
 
-    /**
-     * @param mixed $secret
-     */
-    public function setSecret($secret)
+    public function setSecret(?string $secret): void
     {
         $this->secret = $secret;
     }
 
-    public function getSecret() {
+    public function getSecret(): ?string {
+        return $this->secret;
+    }
+
+    /**
+     * The window secret is what every HMAC is keyed on. Without it the SDK would
+     * hash with an empty key and quietly produce a signature that can never
+     * match, so say so instead.
+     *
+     * @throws MissingDataException
+     */
+    private function requireSecret(): string {
+        if (null === $this->secret || '' === $this->secret) {
+            throw new MissingDataException('No window secret set, call setSecret() first.');
+        }
+
         return $this->secret;
     }
 
     /**
      * Generates hmac secret
      * @return string
+     * @throws MissingDataException
      */
     public function generateSecret() {
 
         $fields = $this->getAvailableFieldsWithPrefix();
         $queryString = strtolower(http_build_query($fields));
-        $hmac = hash_hmac('sha1', $queryString, $this->secret);
+        $hmac = hash_hmac('sha1', $queryString, $this->requireSecret());
         return $hmac;
     }
 
@@ -503,18 +520,19 @@ class PaymentWindow
      * Validate payment
      * @param array $fields
      * @return bool
+     * @throws MissingDataException
      */
     public function validatePayment(array $fields) {
 
         $validFields = [];
 
         foreach ($fields as $key => $value) {
-            if(strpos($key, 'onpay_') !== false) {
+            if (str_starts_with((string) $key, 'onpay_')) {
                 $validFields[$key] = $value;
             }
         }
 
-        if (!isset($validFields['onpay_hmac_sha1'])) {
+        if (!isset($validFields['onpay_hmac_sha1']) || !is_string($validFields['onpay_hmac_sha1'])) {
             return false;
         }
 
@@ -525,13 +543,9 @@ class PaymentWindow
         ksort($validFields);
 
         $queryString = strtolower(http_build_query($validFields));
-        $hmac = hash_hmac('sha1', $queryString, $this->secret);
+        $hmac = hash_hmac('sha1', $queryString, $this->requireSecret());
 
-        if($verify === $hmac) {
-            return true;
-        }
-
-        return false;
+        return hash_equals($hmac, $verify);
     }
 
     /**

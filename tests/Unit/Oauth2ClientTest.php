@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Unit;
 
 use GuzzleHttp\Client as GuzzleClient;
@@ -182,6 +184,39 @@ class Oauth2ClientTest extends TestCase {
         $this->assertSame('refresh_token', $body['grant_type']);
         $this->assertSame('valid_refresh_token', $body['refresh_token']);
         $this->assertSame('Bearer refreshed_access_token', $this->sentRequests[1]->getHeaderLine('Authorization'));
+    }
+
+    /**
+     * RFC 6749 section 6 lets the server omit refresh_token from a refresh
+     * response, in which case the previous one stays valid. Storing the response
+     * verbatim would drop it and make the next expiry unrecoverable.
+     */
+    public function testRefreshResponseWithoutRefreshTokenKeepsTheOldOne(): void {
+        $stored = null;
+        $tokenStorage = $this->createMock(TokenStorageInterface::class);
+        $tokenStorage->method('getToken')->willReturn(json_encode([
+            'access_token' => 'expired_access_token',
+            'refresh_token' => 'long_lived_refresh_token',
+            'expires' => time() - 60,
+        ]));
+        $tokenStorage->method('saveToken')->willReturnCallback(
+            function (string $json) use (&$stored): void {
+                $stored = json_decode($json, true);
+            }
+        );
+
+        $api = $this->api([
+            new GuzzleResponse(200, ['content-type' => 'application/json'], json_encode([
+                'access_token' => 'refreshed_access_token',
+                'token_type' => 'Bearer',
+                'expires_in' => 3600,
+            ])),
+            new GuzzleResponse(200, ['content-type' => 'application/json'], '{"ping":"pong"}'),
+        ], $tokenStorage);
+
+        $this->assertSame(['ping' => 'pong'], $api->ping());
+        $this->assertSame('refreshed_access_token', $stored['access_token']);
+        $this->assertSame('long_lived_refresh_token', $stored['refresh_token']);
     }
 
     public function testMissingRefreshTokenMakesIsAuthorizedFalse(): void {

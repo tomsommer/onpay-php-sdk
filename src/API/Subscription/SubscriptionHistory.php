@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace OnPay\API\Subscription;
 
 use OnPay\API\Util\Converter;

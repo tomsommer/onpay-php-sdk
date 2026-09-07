@@ -30,6 +30,14 @@ fork replaces both:
 - **Malformed JSON and transport errors raise typed exceptions** rather than yielding `null`.
 - **`getLastHttpRequest()` / `getLastHttpResponse()` return the PSR-7 messages**, not a
   hand-rolled partial copy of them.
+- **Payment-window verification is timing-safe and no longer over-collects fields.**
+  `validatePayment()` compares the HMAC with `hash_equals()`, and it selects the signed
+  fields by the `onpay_` *prefix* the window actually writes rather than by substring, so an
+  unrelated parameter containing `onpay_` no longer breaks verification of a real payment.
+  Calling it, or `getFormFields()`, without a window secret raises `MissingDataException`
+  instead of hashing with an empty key.
+- **`declare(strict_types=1)` in every file**, so amounts and identifiers are not silently
+  coerced on the way through.
 - **PHP 8.2+, native types on the core classes, and a CI suite** running PHPUnit on
   PHP 8.2/8.3/8.4 plus PHPStan.
 
@@ -51,6 +59,12 @@ Breaking changes:
   so cast it to string.
 - `TokenStorageInterface` now declares `getToken(): ?string` and `saveToken(string $token): void`.
   Add the types to your own implementation.
+- `PaymentWindow::setSecret()` is typed `?string`, and `getSecret()` returns `?string`.
+- `PaymentWindow::getFormFields()`, `generateSecret()` and `validatePayment()` throw
+  `OnPay\API\Exception\MissingDataException` when no window secret has been set, rather
+  than hashing with an empty key and returning a signature that can never match.
+- The SDK no longer sets a cURL timeout of its own, because it no longer owns the transport.
+  Configure the timeout on the HTTP client you inject.
 - Stored tokens are written in `league/oauth2-client` format. Tokens written by 1.x are still
   read, so existing installations keep working without re-authorizing.
 - A PSR-18 client and PSR-17 factories must be installable. `composer require` pulls in

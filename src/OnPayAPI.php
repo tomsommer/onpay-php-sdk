@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace OnPay;
 
 use Http\Discovery\Psr17FactoryDiscovery;
@@ -7,6 +9,7 @@ use Http\Discovery\Psr18ClientDiscovery;
 use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
 use League\OAuth2\Client\Token\AccessToken;
 use League\OAuth2\Client\Token\AccessTokenInterface;
+use League\OAuth2\Client\Token\SettableRefreshTokenInterface;
 use OnPay\API\Exception\ApiException;
 use OnPay\API\Exception\ConnectionException;
 use OnPay\API\Exception\TokenException;
@@ -27,7 +30,7 @@ use Psr\Log\LoggerInterface;
 class OnPayAPI implements LoggerAwareInterface {
     use LoggerAwareTrait;
 
-    const SDK_VERSION = '2.0.0';
+    const SDK_VERSION = '2.1.0';
 
     protected TokenStorageInterface $tokenStorage;
 
@@ -338,13 +341,14 @@ class OnPayAPI implements LoggerAwareInterface {
             return $accessToken;
         }
 
-        if (null === $accessToken->getRefreshToken()) {
+        $refreshToken = $accessToken->getRefreshToken();
+        if (null === $refreshToken) {
             throw new TokenException('Access token has expired and no refresh token is available.');
         }
 
         try {
-            $accessToken = $this->oauth2Provider->getAccessToken('refresh_token', [
-                'refresh_token' => $accessToken->getRefreshToken(),
+            $refreshed = $this->oauth2Provider->getAccessToken('refresh_token', [
+                'refresh_token' => $refreshToken,
             ]);
         } catch (IdentityProviderException $e) {
             throw new TokenException($e->getMessage(), $e->getCode(), $e);
@@ -352,9 +356,16 @@ class OnPayAPI implements LoggerAwareInterface {
             throw new ConnectionException($e->getMessage(), $e->getCode(), $e);
         }
 
-        $this->tokenStorage->saveToken(json_encode($accessToken));
+        // RFC 6749 section 6 lets the server leave refresh_token out of a refresh
+        // response, meaning the old one stays valid. Storing the response as-is
+        // would drop it and make the next expiry unrecoverable.
+        if (null === $refreshed->getRefreshToken() && $refreshed instanceof SettableRefreshTokenInterface) {
+            $refreshed->setRefreshToken($refreshToken);
+        }
 
-        return $accessToken;
+        $this->tokenStorage->saveToken(json_encode($refreshed));
+
+        return $refreshed;
     }
 
     /**

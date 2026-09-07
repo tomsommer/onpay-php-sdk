@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use OnPay\API\SubscriptionService;
 use OnPay\API\Exception\ApiException;
 use PHPUnit\Framework\TestCase;

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace OnPay;
 
 use League\OAuth2\Client\Provider\AbstractProvider;
