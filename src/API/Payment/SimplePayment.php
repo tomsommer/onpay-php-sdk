@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace OnPay\API\Payment;
 
+use OnPay\API\Exception\ApiException;
+use OnPay\API\Util\ResponseParser;
+
 class SimplePayment {
 
     private $uuid;
@@ -14,14 +17,20 @@ class SimplePayment {
     private $method;
     private $paymentLink;
 
+    /**
+     * @throws ApiException when the response carries no data object
+     */
     public function __construct($response) {
-        $this->uuid = $response['data']['payment_uuid'];
-        $this->amount = $response['data']['amount'];
-        $this->currency = $response['data']['currency_code'];
-        $this->expiration = $response['data']['expiration'];
-        $this->language = $response['data']['language'];
-        $this->method = $response['data']['method'];
-        $this->paymentLink = $response['links']['payment_window'];
+        $data = ResponseParser::data($response);
+        $links = ResponseParser::links($response);
+
+        $this->uuid = $data['payment_uuid'] ?? null;
+        $this->amount = $data['amount'] ?? null;
+        $this->currency = $data['currency_code'] ?? null;
+        $this->expiration = $data['expiration'] ?? null;
+        $this->language = $data['language'] ?? null;
+        $this->method = $data['method'] ?? null;
+        $this->paymentLink = $links['payment_window'] ?? null;
     }
 
     public function getUuid() {

@@ -30,9 +30,11 @@ class CartItem {
 
     /**
      * @param string $name 1-127 bytes
-     * @param int $price Per item price including tax
-     * @param int $quantity
-     * @param int $tax
+     * @param int|float $price Per item price including tax, in minor units. A float
+     *                         is rounded, since a price arrived at by arithmetic
+     *                         (19.99 * 100) is one in all but type.
+     * @param int|float $quantity
+     * @param int|float $tax Amount in minor units
      * @param string|null $description 1-127 bytes
      * @param string|null $sku 1-127 bytes
      * @param string|null $quantity_unit 1-127 bytes
@@ -43,9 +45,12 @@ class CartItem {
         $this->name = $name;
         $this->description = $description;
         $this->sku = $sku;
-        $this->price = $price;
-        $this->quantity = $quantity;
-        $this->tax = $tax;
+        // Minor units, like every other amount the cart carries. Left as given,
+        // a price arrived at by arithmetic (19.99 * 100) stays a float and the
+        // total check compares int against float and rejects a valid cart.
+        $this->price = (int) round((float) $price);
+        $this->quantity = (int) $quantity;
+        $this->tax = (int) round((float) $tax);
         $this->quantity_unit = $quantity_unit;
         $this->global_trade_item_number = $global_trade_item_number;
         $this->type = $type;

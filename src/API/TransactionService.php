@@ -31,7 +31,7 @@ class TransactionService {
      * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function getTransaction($identifier) {
-        if (empty($identifier)) {
+        if ('' === $identifier) {
             throw new ApiException('Transaction number must be provided');
         }
         $result = $this->api->get('transaction/' . rawurlencode($identifier));
@@ -94,7 +94,7 @@ class TransactionService {
      */
     public function captureTransaction($transactionNumber, $amount = null, $postActionChargeAmount = null) {
         $jsonBody = null;
-        if (empty($transactionNumber)) {
+        if ('' === $transactionNumber) {
             throw new ApiException('Transaction number must be provided');
         }
 
@@ -131,7 +131,7 @@ class TransactionService {
      * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function cancelTransaction($transactionNumber) {
-        if (empty($transactionNumber)) {
+        if ('' === $transactionNumber) {
             throw new ApiException('Transaction number must be provided');
         }
         $result = $this->api->post('transaction/' . rawurlencode($transactionNumber) . '/cancel');
@@ -159,7 +159,7 @@ class TransactionService {
     public function refundTransaction($transactionNumber, $amount = null, $postActionRefundAmount = null) {
         $jsonBody = null;
         
-        if (empty($transactionNumber)) {
+        if ('' === $transactionNumber) {
             throw new ApiException('Transaction number must be provided');
         }
         if(null !== $amount && null !== $postActionRefundAmount) {

@@ -81,7 +81,7 @@ class SubscriptionService
      * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function getSubscription($subscriptionId) {
-        if (empty($subscriptionId)) {
+        if (null === $subscriptionId || '' === $subscriptionId) {
             throw new ApiException('Subscription ID must be provided');
         }
 
@@ -99,7 +99,7 @@ class SubscriptionService
      * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function cancelSubscription($subscriptionId) {
-        if (empty($subscriptionId)) {
+        if (null === $subscriptionId || '' === $subscriptionId) {
             throw new ApiException('Subscription ID must be provided');
         }
 
@@ -120,7 +120,7 @@ class SubscriptionService
      * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function createTransactionFromSubscription($uuid, $amount, $orderId, $surchargeEnabled = false, $surchargeVatRate = 0) {
-        if (empty($uuid)) {
+        if (null === $uuid || '' === $uuid) {
             throw new ApiException('Subscription UUID must be provided');
         }
 

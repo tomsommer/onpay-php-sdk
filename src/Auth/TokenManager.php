@@ -23,6 +23,12 @@ use TomSommer\OAuth2\Client\Provider\OnPay as OnPayProvider;
  */
 class TokenManager
 {
+    /**
+     * How far ahead of the stated expiry a token is considered spent, to absorb
+     * clock differences between us and OnPay.
+     */
+    private const EXPIRY_MARGIN_SECONDS = 30;
+
     public function __construct(
         private readonly TokenStorageInterface $tokenStorage,
         private readonly OnPayProvider $provider,
@@ -54,6 +60,38 @@ class TokenManager
         }
 
         return $this->refresh($refreshToken);
+    }
+
+    /**
+     * Forces a refresh of the stored token, whatever it claims about its expiry.
+     *
+     * Used when OnPay rejects a token the SDK believed was still good, which is
+     * the only authority that actually counts.
+     *
+     * @throws TokenException when there is nothing to refresh with
+     * @throws ConnectionException when the token endpoint could not be reached
+     */
+    public function forceRefresh(): AccessTokenInterface
+    {
+        $accessToken = $this->getAccessToken();
+        $refreshToken = $accessToken?->getRefreshToken();
+        if (null === $refreshToken) {
+            throw new TokenException('Access token was rejected and no refresh token is available.');
+        }
+
+        return $this->refresh($refreshToken);
+    }
+
+    /**
+     * Whether a rejected token could be renewed at all.
+     */
+    public function canRefresh(): bool
+    {
+        try {
+            return null !== $this->getAccessToken()?->getRefreshToken();
+        } catch (TokenException $e) {
+            return false;
+        }
     }
 
     /**
@@ -98,6 +136,11 @@ class TokenManager
             throw new TokenException($e->getMessage(), $e->getCode(), $e);
         } catch (\UnexpectedValueException $e) {
             throw new ConnectionException($e->getMessage(), $e->getCode(), $e);
+        } catch (\InvalidArgumentException $e) {
+            // A 2xx carrying no access_token, or a non-numeric expires_in, reaches
+            // league's AccessToken constructor and fails there. That is still a
+            // token problem, so it should not escape as an unrelated SPL type.
+            throw new TokenException($e->getMessage(), $e->getCode(), $e);
         }
     }
 
@@ -124,18 +167,29 @@ class TokenManager
         }
 
         $values = json_decode($json, true);
-        if (!is_array($values) || !isset($values['access_token'])) {
+        if (!is_array($values) || !isset($values['access_token']) || !is_string($values['access_token'])) {
             throw new TokenException('Stored token could not be read.');
         }
 
         // Legacy fkooman format carries issued_at + expires_in instead of expires.
         if (isset($values['issued_at'], $values['expires_in']) && !isset($values['expires'])) {
             $issuedAt = strtotime((string) $values['issued_at']);
-            if (false !== $issuedAt) {
-                $values['expires'] = $issuedAt + (int) $values['expires_in'];
-            }
-            unset($values['issued_at'], $values['expires_in'], $values['provider_id']);
+            // An unparsable issued_at leaves no way to place the token in time.
+            $values['expires'] = false !== $issuedAt
+                ? $issuedAt + (int) $values['expires_in']
+                : 1;
+            unset($values['issued_at'], $values['provider_id']);
         }
+
+        // expires_in is relative to when the token was issued, which a stored blob
+        // no longer records. league would recompute it from the current time,
+        // making the token perpetually fresh however old it really is. Dropping
+        // it outright would be just as wrong in the other direction - a token
+        // with no expiry at all - so treat it as spent and let it be renewed.
+        if (isset($values['expires_in']) && !isset($values['expires'])) {
+            $values['expires'] = 1;
+        }
+        unset($values['expires_in']);
 
         return new AccessToken($values);
     }
@@ -145,6 +199,16 @@ class TokenManager
      */
     private function hasExpired(AccessTokenInterface $accessToken): bool
     {
-        return null !== $accessToken->getExpires() && $accessToken->hasExpired();
+        $expires = $accessToken->getExpires();
+
+        // No expiry at all - a static API token, or league's own "0 means never".
+        // Asking hasExpired() in that state raises a RuntimeException.
+        if (null === $expires || 0 === $expires) {
+            return false;
+        }
+
+        // Renew slightly early so a token that is technically alive but will be
+        // dead by the time it reaches OnPay does not cost a round trip.
+        return $expires < (time() + self::EXPIRY_MARGIN_SECONDS);
     }
 }

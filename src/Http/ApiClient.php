@@ -61,12 +61,33 @@ class ApiClient implements ApiClientInterface, LoggerAwareInterface
      */
     private function send(string $method, string $url, ?string $body = null): mixed
     {
-        $accessToken = $this->tokenManager->getValidAccessToken();
+        try {
+            return $this->attempt($method, $url, $body, $this->tokenManager->getValidAccessToken()->getToken());
+        } catch (TokenException $e) {
+            // OnPay is the authority on whether a token is still good, and it
+            // disagreed. If there is something to renew with, spend one refresh
+            // on finding out rather than failing a payment over clock drift or a
+            // token revoked out from under us.
+            if (401 !== $e->getCode() || !$this->tokenManager->canRefresh()) {
+                throw $e;
+            }
+        }
+
+        return $this->attempt($method, $url, $body, $this->tokenManager->forceRefresh()->getToken());
+    }
+
+    /**
+     * @throws ApiException
+     * @throws TokenException
+     * @throws ConnectionException
+     */
+    private function attempt(string $method, string $url, ?string $body, string $token): mixed
+    {
         $uri = $this->baseUri . '/v1/' . $url;
 
         $request = $this->requestFactory->createRequest($method, $uri)
             ->withHeader('User-Agent', $this->platform)
-            ->withHeader('Authorization', 'Bearer ' . $accessToken->getToken());
+            ->withHeader('Authorization', 'Bearer ' . $token);
 
         if (null !== $body) {
             $request = $request

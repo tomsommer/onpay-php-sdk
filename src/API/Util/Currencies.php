@@ -58,10 +58,19 @@ final class Currencies {
     }
 
     /**
-     * @param int $ISO4217
+     * @param int|string $ISO4217 Numeric ISO 4217 code, as an int or a numeric string
      * @return bool|string
      */
     public static function isValidISO4217($ISO4217) {
+        // Numeric codes arrive as ints from our own table and as strings from
+        // request data, and both name the same currency.
+        if (is_string($ISO4217) && ctype_digit($ISO4217)) {
+            $ISO4217 = (int) $ISO4217;
+        }
+        if (!is_int($ISO4217)) {
+            return false;
+        }
+
         $currencyArray = self::CURRENCIES;
         foreach ($currencyArray as $alpha3 => $currencyData) {
             if ($currencyData['ISO4217'] === $ISO4217) {

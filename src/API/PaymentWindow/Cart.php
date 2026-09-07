@@ -255,7 +255,7 @@ class Cart {
             $cartTotal = $cartTotal - $this->discount;
         }
 
-        if ($amount !== $cartTotal) {
+        if ((int) $amount !== (int) $cartTotal) {
             $errors[] = 'Cart total does not match amount for payment, cart total was calculated to: ' . $cartTotal . ', amount provided is: ' . $amount;
         }
 

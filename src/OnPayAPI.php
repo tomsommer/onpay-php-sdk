@@ -31,7 +31,7 @@ use TomSommer\OAuth2\Client\Provider\OnPay as OnPayProvider;
  * service objects for each part of the API.
  */
 class OnPayAPI implements LoggerAwareInterface {
-    const SDK_VERSION = '3.3.0';
+    const SDK_VERSION = '3.4.0';
 
     protected string $scope = 'full';
 
