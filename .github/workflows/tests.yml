@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.2', '8.3', '8.4']
+        php: ['8.2', '8.3', '8.4', '8.5']
         dependencies: [highest]
         include:
           - php: '8.2'
@@ -34,6 +34,33 @@ jobs:
         uses: ramsey/composer-install@v3
         with:
           dependency-versions: ${{ matrix.dependencies }}
+
+      - name: Run PHPUnit
+        run: vendor/bin/phpunit
+
+  nightly:
+    name: PHP 8.6 (nightly)
+    runs-on: ubuntu-latest
+    # 8.6 is not released yet, so this reports early rather than gating merges.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.6'
+          extensions: json
+          coverage: none
+
+      - name: Install dependencies
+        uses: ramsey/composer-install@v3
+        with:
+          # league/oauth2-client still declares an upper bound of <8.6.0. Ignore
+          # the upper bound only, so this job reports whether the code runs on
+          # 8.6 rather than whether the constraint has been widened yet.
+          composer-options: "--ignore-platform-req=php+"
 
       - name: Run PHPUnit
         run: vendor/bin/phpunit
