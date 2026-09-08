@@ -12,7 +12,7 @@ use OnPay\OnPayAPI;
 class PaymentWindow
 {
     const SDK_VERSION = OnPayAPI::SDK_VERSION;
-    const SDK_VERSION_STRING = 'php-sdk' . '/' . OnPayAPI::SDK_VERSION;
+    const SDK_VERSION_STRING = OnPayAPI::SDK_PLATFORM_STRING;
 
     const METHOD_CARD = 'card';
     const METHOD_MOBILEPAY = 'mobilepay';
@@ -339,7 +339,7 @@ class PaymentWindow
     /**
      * Name of platform, version of platform, version of system platform is running on.
      * Concats platform parameters to a / delimited string
-     * Examples: 'php-sdk/1/1', 'php-sdk/1', 'php-sdk//1'
+     * Examples: 'my-shop/2.1/8.3', 'my-shop/2.1', 'my-shop//8.3'
      *
      * @param string $platform
      * @param string|null $version

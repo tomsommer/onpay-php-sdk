@@ -152,8 +152,35 @@ class OnPayApiTest extends TestCase {
     }
 
     /** @throws Exception */
-    public function testPlatformDefaultsToTheSdkVersion(): void {
-        $this->assertSame('php-sdk/' . OnPayAPI::SDK_VERSION, $this->api()->getPlatform());
+    public function testPlatformDefaultsToThisForksIdentifier(): void {
+        $this->assertSame(OnPayAPI::SDK_PLATFORM_STRING, $this->api()->getPlatform());
+        $this->assertSame('tomsommer-onpay-php-sdk/' . OnPayAPI::SDK_VERSION, $this->api()->getPlatform());
+    }
+
+    /**
+     * Upstream sends 'php-sdk', so sharing that identifier would make this fork
+     * indistinguishable from it in OnPay's logs.
+     *
+     * @throws Exception
+     */
+    public function testPlatformIsNotUpstreamsIdentifier(): void {
+        $this->assertStringStartsNotWith('php-sdk/', $this->api()->getPlatform());
+    }
+
+    /** @throws Exception */
+    public function testPlatformIsSentAsTheUserAgent(): void {
+        $api = $this->api([], null, $captured);
+        $api->ping();
+
+        $this->assertSame(OnPayAPI::SDK_PLATFORM_STRING, $captured->getHeaderLine('User-Agent'));
+    }
+
+    /**
+     * PaymentService decides whether a window's platform has been customised by
+     * comparing against this constant, so the two must not drift apart.
+     */
+    public function testPaymentWindowUsesTheSamePlatformString(): void {
+        $this->assertSame(OnPayAPI::SDK_PLATFORM_STRING, \OnPay\API\PaymentWindow::SDK_VERSION_STRING);
     }
 
     /** @throws Exception */

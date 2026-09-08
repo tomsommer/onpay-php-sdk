@@ -32,7 +32,24 @@ use TomSommer\OAuth2\Client\Provider\OnPay as OnPayProvider;
  * service objects for each part of the API.
  */
 class OnPayAPI implements LoggerAwareInterface {
-    const SDK_VERSION = '4.0.0';
+    const SDK_VERSION = '4.1.0';
+
+    /**
+     * How this SDK identifies itself to OnPay, as the User-Agent on every API
+     * request and as onpay_platform on a payment window.
+     *
+     * Deliberately not 'php-sdk': that is what onpayio/php-sdk sends, and a
+     * shared identifier makes it impossible to tell in OnPay's logs whether a
+     * request came from upstream or from this fork.
+     */
+    const SDK_PLATFORM = 'tomsommer-onpay-php-sdk';
+
+    /**
+     * The platform identifier with its version, in the name/version form OnPay
+     * documents. Built once, because PaymentService decides whether a window's
+     * platform has been customised by comparing against it.
+     */
+    const SDK_PLATFORM_STRING = self::SDK_PLATFORM . '/' . self::SDK_VERSION;
 
     protected string $scope = 'full';
 
@@ -280,7 +297,7 @@ class OnPayAPI implements LoggerAwareInterface {
 
         // Set redirect_uri to an empty value if none is sent
         $options['redirect_uri'] ??= '';
-        $options['platform'] ??= 'php-sdk' . '/' . self::SDK_VERSION;
+        $options['platform'] ??= self::SDK_PLATFORM_STRING;
 
         return $options;
     }

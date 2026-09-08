@@ -62,6 +62,28 @@ re-authorizing.
 What changed in each version, and what to do about it, is in the
 [release notes](https://github.com/tomsommer/onpay-php-sdk/releases).
 
+### Identifying yourself to OnPay
+
+Every API request carries a `User-Agent`, and a payment window carries the same
+value as `onpay_platform`. By default that is this fork's identifier, which is
+deliberately not the `php-sdk` upstream sends, so OnPay's logs can tell the two
+apart:
+
+```php
+$onPayAPI->getPlatform();          // tomsommer-onpay-php-sdk/4.1.0
+OnPayAPI::SDK_PLATFORM_STRING;     // the same, as a constant
+```
+
+If you are building an integration of your own on top of this, say so instead —
+OnPay documents the form as name/version/systemVersion:
+
+```php
+$onPayAPI = new \OnPay\OnPayAPI($tokenStorage, [
+    'client_id' => 'example.com',
+    'platform'  => 'my-shop/2.1/8.3',
+]);
+```
+
 ## Requirements
 
 PHP 8.2 and later, plus a PSR-18 HTTP client. `composer require` pulls in
